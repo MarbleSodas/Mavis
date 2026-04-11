@@ -752,7 +752,7 @@ class TestVoiceChannelCommands:
         result = await runner._handle_voice_channel_join(event)
 
         assert "voice dependencies are missing" in result.lower()
-        assert "hermes-agent[messaging]" in result
+        assert "mavis-agent[messaging]" in result
 
     # -- _handle_voice_channel_leave --
 

@@ -1,4 +1,4 @@
-"""Helpers for loading Hermes .env files consistently across entrypoints."""
+"""Helpers for loading Mavis .env files consistently across entrypoints."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from hermes_constants import DEFAULT_HOME_DIRNAME, HOME_ENV_VAR, LEGACY_HOME_ENV_VAR
 
 
 def _load_dotenv_with_fallback(path: Path, *, override: bool) -> None:
@@ -20,17 +22,22 @@ def load_hermes_dotenv(
     hermes_home: str | os.PathLike | None = None,
     project_env: str | os.PathLike | None = None,
 ) -> list[Path]:
-    """Load Hermes environment files with user config taking precedence.
+    """Load Mavis environment files with user config taking precedence.
 
     Behavior:
-    - `~/.hermes/.env` overrides stale shell-exported values when present.
+    - `~/.mavis/.env` overrides stale shell-exported values when present.
     - project `.env` acts as a dev fallback and only fills missing values when
       the user env exists.
     - if no user env exists, the project `.env` also overrides stale shell vars.
     """
     loaded: list[Path] = []
 
-    home_path = Path(hermes_home or os.getenv("HERMES_HOME", Path.home() / ".hermes"))
+    home_path = Path(
+        hermes_home
+        or os.getenv(HOME_ENV_VAR)
+        or os.getenv(LEGACY_HOME_ENV_VAR)
+        or (Path.home() / DEFAULT_HOME_DIRNAME)
+    )
     user_env = home_path / ".env"
     project_env_path = Path(project_env) if project_env else None
 

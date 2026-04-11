@@ -915,10 +915,10 @@ class TestEnableVoiceModeReal:
            return_value={"available": True, "details": "OK"})
     @patch("tools.voice_mode.detect_audio_environment",
            return_value={"available": True, "warnings": []})
-    def test_no_auto_tts_default(self, _env, _req, _cfg, _cp):
+    def test_auto_tts_default(self, _env, _req, _cfg, _cp):
         cli = _make_voice_cli()
         cli._enable_voice_mode()
-        assert cli._voice_tts is False
+        assert cli._voice_tts is True
 
     @patch("cli._cprint")
     @patch("hermes_cli.config.load_config", side_effect=Exception("broken config"))

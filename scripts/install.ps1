@@ -1,11 +1,11 @@
 # ============================================================================
-# Hermes Agent Installer for Windows
+# Mavis Installer for Windows
 # ============================================================================
 # Installation script for Windows (PowerShell).
 # Uses uv for fast Python provisioning and package management.
 #
 # Usage:
-#   irm https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/MarbleSodas/Mavis/main/scripts/install.ps1 | iex
 #
 # Or download and run with options:
 #   .\install.ps1 -NoVenv -SkipSetup
@@ -16,8 +16,8 @@ param(
     [switch]$NoVenv,
     [switch]$SkipSetup,
     [string]$Branch = "main",
-    [string]$HermesHome = "$env:LOCALAPPDATA\hermes",
-    [string]$InstallDir = "$env:LOCALAPPDATA\hermes\hermes-agent"
+    [string]$HermesHome = "$env:LOCALAPPDATA\mavis",
+    [string]$InstallDir = "$env:LOCALAPPDATA\mavis\mavis-agent"
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,8 +26,8 @@ $ErrorActionPreference = "Stop"
 # Configuration
 # ============================================================================
 
-$RepoUrlSsh = "git@github.com:NousResearch/hermes-agent.git"
-$RepoUrlHttps = "https://github.com/NousResearch/hermes-agent.git"
+$RepoUrlSsh = "git@github.com:MarbleSodas/Mavis.git"
+$RepoUrlHttps = "https://github.com/MarbleSodas/Mavis.git"
 $PythonVersion = "3.11"
 $NodeVersion = "22"
 
@@ -38,7 +38,7 @@ $NodeVersion = "22"
 function Write-Banner {
     Write-Host ""
     Write-Host "┌─────────────────────────────────────────────────────────┐" -ForegroundColor Magenta
-    Write-Host "│             ⚕ Hermes Agent Installer                    │" -ForegroundColor Magenta
+    Write-Host "│                   Mavis Installer                       │" -ForegroundColor Magenta
     Write-Host "├─────────────────────────────────────────────────────────┤" -ForegroundColor Magenta
     Write-Host "│  An open source AI agent by Nous Research.              │" -ForegroundColor Magenta
     Write-Host "└─────────────────────────────────────────────────────────┘" -ForegroundColor Magenta
@@ -244,7 +244,7 @@ function Test-Node {
         } catch { }
     }
 
-    # Fallback: download binary zip to ~/.hermes/node/
+    # Fallback: download binary zip to ~/.mavis/node/
     Write-Info "Downloading Node.js $NodeVersion binary..."
     try {
         $arch = if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
@@ -268,7 +268,7 @@ function Test-Node {
                 $env:Path = "$HermesHome\node;$env:Path"
 
                 $version = & "$HermesHome\node\node.exe" --version
-                Write-Success "Node.js $version installed to ~/.hermes/node/"
+                Write-Success "Node.js $version installed to ~/.mavis/node/"
                 $script:HasNode = $true
 
                 Remove-Item -Force $tmpZip -ErrorAction SilentlyContinue
@@ -461,9 +461,9 @@ function Install-Repository {
             if (Test-Path $InstallDir) { Remove-Item -Recurse -Force $InstallDir -ErrorAction SilentlyContinue }
             Write-Warn "Git clone failed — downloading ZIP archive instead..."
             try {
-                $zipUrl = "https://github.com/NousResearch/hermes-agent/archive/refs/heads/$Branch.zip"
-                $zipPath = "$env:TEMP\hermes-agent-$Branch.zip"
-                $extractPath = "$env:TEMP\hermes-agent-extract"
+                $zipUrl = "https://github.com/MarbleSodas/Mavis/archive/refs/heads/$Branch.zip"
+                $zipPath = "$env:TEMP\mavis-agent-$Branch.zip"
+                $extractPath = "$env:TEMP\mavis-agent-extract"
                 
                 Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath -UseBasicParsing
                 if (Test-Path $extractPath) { Remove-Item -Recurse -Force $extractPath }
@@ -578,7 +578,7 @@ function Install-Dependencies {
 }
 
 function Set-PathVariable {
-    Write-Info "Setting up hermes command..."
+    Write-Info "Setting up mavis command..."
     
     if ($NoVenv) {
         $hermesBin = "$InstallDir"
@@ -601,26 +601,31 @@ function Set-PathVariable {
         Write-Info "PATH already configured"
     }
     
-    # Set HERMES_HOME so the Python code finds config/data in the right place.
-    # Only needed on Windows where we install to %LOCALAPPDATA%\hermes instead
-    # of the Unix default ~/.hermes
+    # Set MAVIS_HOME and legacy HERMES_HOME so the Python code finds config/data
+    # in the right place.
+    $currentMavisHome = [Environment]::GetEnvironmentVariable("MAVIS_HOME", "User")
     $currentHermesHome = [Environment]::GetEnvironmentVariable("HERMES_HOME", "User")
+    if (-not $currentMavisHome -or $currentMavisHome -ne $HermesHome) {
+        [Environment]::SetEnvironmentVariable("MAVIS_HOME", $HermesHome, "User")
+        Write-Success "Set MAVIS_HOME=$HermesHome"
+    }
     if (-not $currentHermesHome -or $currentHermesHome -ne $HermesHome) {
         [Environment]::SetEnvironmentVariable("HERMES_HOME", $HermesHome, "User")
         Write-Success "Set HERMES_HOME=$HermesHome"
     }
+    $env:MAVIS_HOME = $HermesHome
     $env:HERMES_HOME = $HermesHome
     
     # Update current session
     $env:Path = "$hermesBin;$env:Path"
     
-    Write-Success "hermes command ready"
+    Write-Success "mavis command ready"
 }
 
 function Copy-ConfigTemplates {
     Write-Info "Setting up configuration files..."
     
-    # Create ~/.hermes directory structure
+    # Create ~/.mavis directory structure
     New-Item -ItemType Directory -Force -Path "$HermesHome\cron" | Out-Null
     New-Item -ItemType Directory -Force -Path "$HermesHome\sessions" | Out-Null
     New-Item -ItemType Directory -Force -Path "$HermesHome\logs" | Out-Null
@@ -638,13 +643,13 @@ function Copy-ConfigTemplates {
         $examplePath = "$InstallDir\.env.example"
         if (Test-Path $examplePath) {
             Copy-Item $examplePath $envPath
-            Write-Success "Created ~/.hermes/.env from template"
+            Write-Success "Created ~/.mavis/.env from template"
         } else {
             New-Item -ItemType File -Force -Path $envPath | Out-Null
-            Write-Success "Created ~/.hermes/.env"
+            Write-Success "Created ~/.mavis/.env"
         }
     } else {
-        Write-Info "~/.hermes/.env already exists, keeping it"
+        Write-Info "~/.mavis/.env already exists, keeping it"
     }
     
     # Create config.yaml
@@ -653,17 +658,17 @@ function Copy-ConfigTemplates {
         $examplePath = "$InstallDir\cli-config.yaml.example"
         if (Test-Path $examplePath) {
             Copy-Item $examplePath $configPath
-            Write-Success "Created ~/.hermes/config.yaml from template"
+            Write-Success "Created ~/.mavis/config.yaml from template"
         }
     } else {
-        Write-Info "~/.hermes/config.yaml already exists, keeping it"
+        Write-Info "~/.mavis/config.yaml already exists, keeping it"
     }
     
     # Create SOUL.md if it doesn't exist (global persona file)
     $soulPath = "$HermesHome\SOUL.md"
     if (-not (Test-Path $soulPath)) {
         @"
-# Hermes Agent Persona
+# Mavis Persona
 
 <!-- 
 This file defines the agent's personality and tone.
@@ -679,25 +684,25 @@ This file is loaded fresh each message -- no restart needed.
 Delete the contents (or this file) to use the default personality.
 -->
 "@ | Set-Content -Path $soulPath -Encoding UTF8
-        Write-Success "Created ~/.hermes/SOUL.md (edit to customize personality)"
+        Write-Success "Created ~/.mavis/SOUL.md (edit to customize personality)"
     }
     
-    Write-Success "Configuration directory ready: ~/.hermes/"
+    Write-Success "Configuration directory ready: ~/.mavis/"
     
-    # Seed bundled skills into ~/.hermes/skills/ (manifest-based, one-time per skill)
-    Write-Info "Syncing bundled skills to ~/.hermes/skills/ ..."
+    # Seed bundled skills into ~/.mavis/skills/ (manifest-based, one-time per skill)
+    Write-Info "Syncing bundled skills to ~/.mavis/skills/ ..."
     $pythonExe = "$InstallDir\venv\Scripts\python.exe"
     if (Test-Path $pythonExe) {
         try {
             & $pythonExe "$InstallDir\tools\skills_sync.py" 2>$null
-            Write-Success "Skills synced to ~/.hermes/skills/"
+            Write-Success "Skills synced to ~/.mavis/skills/"
         } catch {
             # Fallback: simple directory copy
             $bundledSkills = "$InstallDir\skills"
             $userSkills = "$HermesHome\skills"
             if ((Test-Path $bundledSkills) -and -not (Get-ChildItem $userSkills -Exclude '.bundled_manifest' -ErrorAction SilentlyContinue)) {
                 Copy-Item -Path "$bundledSkills\*" -Destination $userSkills -Recurse -Force -ErrorAction SilentlyContinue
-                Write-Success "Skills copied to ~/.hermes/skills/"
+                Write-Success "Skills copied to ~/.mavis/skills/"
             }
         }
     }
@@ -750,7 +755,7 @@ function Invoke-SetupWizard {
     
     Push-Location $InstallDir
     
-    # Run hermes setup using the venv Python directly (no activation needed)
+    # Run mavis setup using the venv Python directly (no activation needed)
     if (-not $NoVenv) {
         & ".\venv\Scripts\python.exe" -m hermes_cli.main setup
     } else {
@@ -784,7 +789,7 @@ function Start-GatewayIfConfigured {
     if ($whatsappEnabled -and -not (Test-Path $whatsappSession)) {
         Write-Host ""
         Write-Info "WhatsApp is enabled but not yet paired."
-        Write-Info "Running 'hermes whatsapp' to pair via QR code..."
+        Write-Info "Running 'mavis whatsapp' to pair via QR code..."
         Write-Host ""
         $response = Read-Host "Pair WhatsApp now? [Y/n]"
         if ($response -eq "" -or $response -match "^[Yy]") {
@@ -814,10 +819,10 @@ function Start-GatewayIfConfigured {
             Write-Info "Logs: $logFile"
             Write-Info "To stop: close the gateway process from Task Manager"
         } catch {
-            Write-Warn "Failed to start gateway. Run manually: hermes gateway"
+            Write-Warn "Failed to start gateway. Run manually: mavis gateway"
         }
     } else {
-        Write-Info "Skipped. Start the gateway later with: hermes gateway"
+        Write-Info "Skipped. Start the gateway later with: mavis gateway"
     }
 }
 
@@ -838,7 +843,7 @@ function Write-Completion {
     Write-Host "   Data:      " -NoNewline -ForegroundColor Yellow
     Write-Host "$HermesHome\cron\, sessions\, logs\"
     Write-Host "   Code:      " -NoNewline -ForegroundColor Yellow
-    Write-Host "$HermesHome\hermes-agent\"
+    Write-Host "$HermesHome\mavis-agent\"
     Write-Host ""
     
     Write-Host "─────────────────────────────────────────────────────────" -ForegroundColor Cyan
@@ -847,15 +852,15 @@ function Write-Completion {
     Write-Host ""
     Write-Host "   hermes              " -NoNewline -ForegroundColor Green
     Write-Host "Start chatting"
-    Write-Host "   hermes setup        " -NoNewline -ForegroundColor Green
+    Write-Host "   mavis setup         " -NoNewline -ForegroundColor Green
     Write-Host "Configure API keys & settings"
-    Write-Host "   hermes config       " -NoNewline -ForegroundColor Green
+    Write-Host "   mavis config        " -NoNewline -ForegroundColor Green
     Write-Host "View/edit configuration"
-    Write-Host "   hermes config edit  " -NoNewline -ForegroundColor Green
+    Write-Host "   mavis config edit   " -NoNewline -ForegroundColor Green
     Write-Host "Open config in editor"
-    Write-Host "   hermes gateway      " -NoNewline -ForegroundColor Green
+    Write-Host "   mavis gateway       " -NoNewline -ForegroundColor Green
     Write-Host "Start messaging gateway (Telegram, Discord, etc.)"
-    Write-Host "   hermes update       " -NoNewline -ForegroundColor Green
+    Write-Host "   mavis update        " -NoNewline -ForegroundColor Green
     Write-Host "Update to latest version"
     Write-Host ""
     
@@ -913,7 +918,7 @@ try {
     Write-Err "Installation failed: $_"
     Write-Host ""
     Write-Info "If the error is unclear, try downloading and running the script directly:"
-    Write-Host "  Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.ps1' -OutFile install.ps1" -ForegroundColor Yellow
+    Write-Host "  Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/MarbleSodas/Mavis/main/scripts/install.ps1' -OutFile install.ps1" -ForegroundColor Yellow
     Write-Host "  .\install.ps1" -ForegroundColor Yellow
     Write-Host ""
 }

@@ -3,15 +3,15 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'Hermes Agent',
-  tagline: 'The self-improving AI agent',
+  title: 'Mavis',
+  tagline: 'Voice-first agent harness built on Hermes Agent',
   favicon: 'img/favicon.ico',
 
-  url: 'https://hermes-agent.nousresearch.com',
+  url: 'https://github.com/MarbleSodas/Mavis',
   baseUrl: '/docs/',
 
-  organizationName: 'NousResearch',
-  projectName: 'hermes-agent',
+  organizationName: 'MarbleSodas',
+  projectName: 'Mavis',
 
   onBrokenLinks: 'warn',
 
@@ -49,7 +49,7 @@ const config: Config = {
         docs: {
           routeBasePath: '/',  // Docs at the root of /docs/
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/NousResearch/hermes-agent/edit/main/website/',
+          editUrl: 'https://github.com/MarbleSodas/Mavis/edit/main/website/',
         },
         blog: false,
         theme: {
@@ -72,9 +72,9 @@ const config: Config = {
       },
     },
     navbar: {
-      title: 'Hermes Agent',
+      title: 'Mavis',
       logo: {
-        alt: 'Hermes Agent',
+        alt: 'Mavis',
         src: 'img/logo.png',
       },
       items: [
@@ -90,12 +90,12 @@ const config: Config = {
           position: 'left',
         },
         {
-          href: 'https://hermes-agent.nousresearch.com',
+          href: 'https://github.com/MarbleSodas/Mavis',
           label: 'Home',
           position: 'right',
         },
         {
-          href: 'https://github.com/NousResearch/hermes-agent',
+          href: 'https://github.com/MarbleSodas/Mavis',
           label: 'GitHub',
           position: 'right',
         },
@@ -122,14 +122,14 @@ const config: Config = {
           title: 'Community',
           items: [
             { label: 'Discord', href: 'https://discord.gg/NousResearch' },
-            { label: 'GitHub Discussions', href: 'https://github.com/NousResearch/hermes-agent/discussions' },
+            { label: 'GitHub Discussions', href: 'https://github.com/MarbleSodas/Mavis/discussions' },
             { label: 'Skills Hub', href: 'https://agentskills.io' },
           ],
         },
         {
           title: 'More',
           items: [
-            { label: 'GitHub', href: 'https://github.com/NousResearch/hermes-agent' },
+            { label: 'GitHub', href: 'https://github.com/MarbleSodas/Mavis' },
             { label: 'Nous Research', href: 'https://nousresearch.com' },
           ],
         },

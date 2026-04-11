@@ -1,5 +1,5 @@
 """
-Interactive setup wizard for Hermes Agent.
+Interactive setup wizard for Mavis.
 
 Modular wizard with independently-runnable sections:
   1. Model & Provider — choose your AI provider and model
@@ -8,7 +8,7 @@ Modular wizard with independently-runnable sections:
   4. Messaging Platforms — connect Telegram, Discord, etc.
   5. Tools — configure TTS, web search, image generation, etc.
 
-Config files are stored in ~/.hermes/ for easy access.
+Config files are stored in ~/.mavis/ for easy access.
 """
 
 import importlib.util
@@ -16,6 +16,7 @@ import logging
 import os
 import shutil
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -24,13 +25,13 @@ from hermes_cli.nous_subscription import (
     get_nous_subscription_features,
 )
 from tools.tool_backend_helpers import managed_nous_tools_enabled
-from hermes_constants import get_optional_skills_dir
+from hermes_constants import APP_NAME, CLI_NAME, get_optional_skills_dir
 
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
-_DOCS_BASE = "https://hermes-agent.nousresearch.com/docs"
+_DOCS_BASE = "https://github.com/MarbleSodas/Mavis"
 
 
 def _model_config_dict(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -330,30 +331,40 @@ from hermes_cli.config import (
 from hermes_cli.colors import Colors, color
 
 
+def _brand_text(text: str) -> str:
+    return (
+        text.replace("Hermes Agent", APP_NAME)
+        .replace("Hermes Setup", f"{APP_NAME} Setup")
+        .replace("Hermes", APP_NAME)
+        .replace("hermes ", f"{CLI_NAME} ")
+        .replace("~/.hermes", "~/.mavis")
+    )
+
+
 def print_header(title: str):
     """Print a section header."""
     print()
-    print(color(f"◆ {title}", Colors.CYAN, Colors.BOLD))
+    print(color(f"◆ {_brand_text(title)}", Colors.CYAN, Colors.BOLD))
 
 
 def print_info(text: str):
     """Print info text."""
-    print(color(f"  {text}", Colors.DIM))
+    print(color(f"  {_brand_text(text)}", Colors.DIM))
 
 
 def print_success(text: str):
     """Print success message."""
-    print(color(f"✓ {text}", Colors.GREEN))
+    print(color(f"✓ {_brand_text(text)}", Colors.GREEN))
 
 
 def print_warning(text: str):
     """Print warning message."""
-    print(color(f"⚠ {text}", Colors.YELLOW))
+    print(color(f"⚠ {_brand_text(text)}", Colors.YELLOW))
 
 
 def print_error(text: str):
     """Print error message."""
-    print(color(f"✗ {text}", Colors.RED))
+    print(color(f"✗ {_brand_text(text)}", Colors.RED))
 
 
 def is_interactive_stdin() -> bool:
@@ -2839,7 +2850,7 @@ def run_setup_wizard(args):
 def _offer_launch_chat():
     """Prompt the user to jump straight into chat after setup."""
     print()
-    if prompt_yes_no("Launch hermes chat now?", True):
+    if prompt_yes_no(f"Launch {CLI_NAME} chat now?", True):
         from hermes_cli.main import cmd_chat
         from types import SimpleNamespace
         cmd_chat(SimpleNamespace(
@@ -2851,12 +2862,108 @@ def _offer_launch_chat():
         ))
 
 
+def _run_voice_readiness_check(config: dict) -> bool:
+    """Validate the built-in local voice stack and mark readiness in config."""
+    print()
+    print_header("Voice Readiness")
+
+    voice_cfg = config.setdefault("voice", {})
+    voice_cfg["last_validation"] = datetime.now(timezone.utc).isoformat()
+
+    try:
+        from faster_whisper import WhisperModel
+        from tools.voice_mode import AudioRecorder, check_voice_requirements
+    except Exception as exc:
+        voice_cfg["ready"] = False
+        print_warning(
+            "Voice validation could not start. Install the base Mavis dependencies "
+            f"and rerun '{CLI_NAME} setup'. ({exc})"
+        )
+        return False
+
+    checks_ok = True
+    requirements = check_voice_requirements()
+
+    env_notices = requirements.get("environment", {}).get("notices", [])
+    for notice in env_notices:
+        print_info(notice)
+
+    if requirements.get("audio_available"):
+        print_success("Audio libraries are available.")
+    else:
+        checks_ok = False
+        print_warning("Audio libraries are missing or PortAudio is unavailable.")
+
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        print_success(f"ffmpeg found at {ffmpeg_path}")
+    else:
+        checks_ok = False
+        print_warning("ffmpeg is missing. Install it before using spoken voice replies.")
+
+    try:
+        recorder = AudioRecorder()
+        recorder.start()
+        recorder.cancel()
+        recorder.shutdown()
+        print_success("Microphone input opened successfully.")
+    except Exception as exc:
+        checks_ok = False
+        print_warning(f"Microphone validation failed: {exc}")
+
+    stt_model = (
+        config.get("stt", {}).get("local", {}).get("model")
+        or "base"
+    )
+    try:
+        WhisperModel(stt_model, device="auto", compute_type="auto")
+        print_success(f"Local STT model '{stt_model}' is ready.")
+    except Exception as exc:
+        checks_ok = False
+        print_warning(f"Local STT validation failed for model '{stt_model}': {exc}")
+
+    tts_provider = config.get("tts", {}).get("provider", "edge")
+    if tts_provider == "edge":
+        try:
+            import edge_tts  # noqa: F401
+            print_success("Edge TTS is installed for spoken replies.")
+        except Exception as exc:
+            checks_ok = False
+            print_warning(f"Edge TTS is not available: {exc}")
+    elif tts_provider == "openai":
+        if get_env_value("VOICE_TOOLS_OPENAI_KEY"):
+            print_success("OpenAI TTS key detected.")
+        else:
+            checks_ok = False
+            print_warning("OpenAI TTS is configured but VOICE_TOOLS_OPENAI_KEY is missing.")
+    elif tts_provider == "elevenlabs":
+        if get_env_value("ELEVENLABS_API_KEY"):
+            print_success("ElevenLabs key detected.")
+        else:
+            checks_ok = False
+            print_warning("ElevenLabs TTS is configured but ELEVENLABS_API_KEY is missing.")
+    else:
+        print_info(f"TTS provider configured: {tts_provider}")
+
+    voice_cfg["ready"] = checks_ok
+    if checks_ok:
+        print_success(f"{APP_NAME} voice is ready.")
+    else:
+        print_warning(
+            f"{APP_NAME} voice is not fully ready yet. You can keep going and rerun "
+            f"'{CLI_NAME} setup' after installing the missing pieces."
+        )
+        print_info(requirements.get("details", ""))
+
+    return checks_ok
+
+
 def _run_first_time_quick_setup(config: dict, hermes_home, is_existing: bool):
     """Streamlined first-time setup: provider + model only.
 
-    Applies sensible defaults for TTS (Edge), terminal (local), agent
-    settings, and tools — the user can customize later via
-    ``hermes setup <section>``.
+    Applies sensible defaults for built-in voice (local STT + Edge TTS),
+    terminal (local), agent settings, and tools — the user can customize
+    later via ``mavis setup <section>``.
     """
     # Step 1: Model & Provider (essential — skips rotation/vision/TTS)
     setup_model_provider(config, quick=True)
@@ -2883,11 +2990,16 @@ def _run_first_time_quick_setup(config: dict, hermes_home, is_existing: bool):
         save_config(config)
 
     print()
+    print_info("Validating the built-in voice stack...")
+    _run_voice_readiness_check(config)
+    save_config(config)
+
+    print()
     print_success("Setup complete! You're ready to go.")
     print()
-    print_info("  Configure all settings:    hermes setup")
+    print_info(f"  Configure all settings:    {CLI_NAME} setup")
     if gateway_choice != 0:
-        print_info("  Connect Telegram/Discord:  hermes setup gateway")
+        print_info(f"  Connect Telegram/Discord:  {CLI_NAME} setup gateway")
     print()
 
     _print_setup_summary(config, hermes_home)

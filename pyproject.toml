@@ -3,12 +3,12 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hermes-agent"
+name = "mavis-agent"
 version = "0.8.0"
-description = "The self-improving AI agent — creates skills from experience, improves them during use, and runs anywhere"
+description = "Mavis is a voice-first agent harness built on Hermes Agent with local-first speech-to-speech defaults."
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [{ name = "Nous Research" }]
+authors = [{ name = "Mavis Contributors" }]
 license = { text = "MIT" }
 dependencies = [
   # Core — pinned to known-good ranges to limit supply chain attack surface
@@ -30,6 +30,10 @@ dependencies = [
   "firecrawl-py>=4.16.0,<5",
   "parallel-web>=0.4.2,<1",
   "fal-client>=0.13.1,<1",
+  # Built-in speech stack
+  "faster-whisper>=1.0.0,<2",
+  "sounddevice>=0.4.6,<1",
+  "numpy>=1.24.0,<3",
   # Text-to-speech (Edge TTS is free, no API key needed)
   "edge-tts>=7.2.7,<8",
   # Skills Hub (GitHub App JWT auth — optional, only needed for bot identity)
@@ -47,8 +51,7 @@ matrix = ["matrix-nio[e2e]>=0.24.0,<1", "Markdown>=3.6,<4"]
 cli = ["simple-term-menu>=1.0,<2"]
 tts-premium = ["elevenlabs>=1.0,<2"]
 voice = [
-  # Local STT pulls in wheel-only transitive deps (ctranslate2, onnxruntime),
-  # so keep it out of the base install for source-build packagers like Homebrew.
+  # Kept for compatibility; voice is part of the base Mavis install.
   "faster-whisper>=1.0.0,<2",
   "sounddevice>=0.4.6,<1",
   "numpy>=1.24.0,<3",
@@ -73,33 +76,33 @@ rl = [
 ]
 yc-bench = ["yc-bench @ git+https://github.com/collinear-ai/yc-bench.git ; python_version >= '3.12'"]
 all = [
-  "hermes-agent[modal]",
-  "hermes-agent[daytona]",
-  "hermes-agent[messaging]",
+  "mavis-agent[modal]",
+  "mavis-agent[daytona]",
+  "mavis-agent[messaging]",
   # matrix excluded: python-olm (required by matrix-nio[e2e]) is upstream-broken
   # on modern macOS (archived libolm, C++ errors with Clang 21+). Including it
   # here causes the entire [all] install to fail, dropping all other extras.
-  # Users who need Matrix can install manually: pip install 'hermes-agent[matrix]'
-  "hermes-agent[cron]",
-  "hermes-agent[cli]",
-  "hermes-agent[dev]",
-  "hermes-agent[tts-premium]",
-  "hermes-agent[slack]",
-  "hermes-agent[pty]",
-  "hermes-agent[honcho]",
-  "hermes-agent[mcp]",
-  "hermes-agent[homeassistant]",
-  "hermes-agent[sms]",
-  "hermes-agent[acp]",
-  "hermes-agent[voice]",
-  "hermes-agent[dingtalk]",
-  "hermes-agent[feishu]",
+  # Users who need Matrix can install manually: pip install 'mavis-agent[matrix]'
+  "mavis-agent[cron]",
+  "mavis-agent[cli]",
+  "mavis-agent[dev]",
+  "mavis-agent[tts-premium]",
+  "mavis-agent[slack]",
+  "mavis-agent[pty]",
+  "mavis-agent[honcho]",
+  "mavis-agent[mcp]",
+  "mavis-agent[homeassistant]",
+  "mavis-agent[sms]",
+  "mavis-agent[acp]",
+  "mavis-agent[voice]",
+  "mavis-agent[dingtalk]",
+  "mavis-agent[feishu]",
 ]
 
 [project.scripts]
-hermes = "hermes_cli.main:main"
-hermes-agent = "run_agent:main"
-hermes-acp = "acp_adapter.entry:main"
+mavis = "hermes_cli.main:main"
+mavis-agent = "run_agent:main"
+mavis-acp = "acp_adapter.entry:main"
 
 [tool.setuptools]
 py-modules = ["run_agent", "model_tools", "toolsets", "batch_runner", "trajectory_compressor", "toolset_distributions", "cli", "hermes_constants", "hermes_state", "hermes_time", "hermes_logging", "rl_cli", "utils"]

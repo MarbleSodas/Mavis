@@ -432,18 +432,19 @@ def _resolve_gateway_model(config: dict | None = None) -> str:
 
 
 def _resolve_hermes_bin() -> Optional[list[str]]:
-    """Resolve the Hermes update command as argv parts.
+    """Resolve the Mavis update command as argv parts.
 
     Tries in order:
-    1. ``shutil.which("hermes")`` — standard PATH lookup
-    2. ``sys.executable -m hermes_cli.main`` — fallback when Hermes is running
-       from a venv/module invocation and the ``hermes`` shim is not on PATH
+    1. ``shutil.which("mavis")`` — standard PATH lookup
+    2. ``shutil.which("hermes")`` — legacy PATH fallback
+    3. ``sys.executable -m hermes_cli.main`` — fallback when Mavis is running
+       from a venv/module invocation and the ``mavis`` shim is not on PATH
 
     Returns argv parts ready for quoting/joining, or ``None`` if neither works.
     """
     import shutil
 
-    hermes_bin = shutil.which("hermes")
+    hermes_bin = shutil.which("mavis") or shutil.which("hermes")
     if hermes_bin:
         return [hermes_bin]
 
@@ -4152,8 +4153,8 @@ class GatewayRunner:
             if "pynacl" in err_lower or "nacl" in err_lower or "davey" in err_lower:
                 return (
                     "Voice dependencies are missing (PyNaCl / davey). "
-                    "Install or reinstall Hermes with the messaging extra, e.g. "
-                    "`pip install hermes-agent[messaging]`."
+                    "Install or reinstall Mavis with the messaging extra, e.g. "
+                    "`pip install mavis-agent[messaging]`."
                 )
             return f"Failed to join voice channel: {e}"
 
@@ -5522,10 +5523,10 @@ class GatewayRunner:
     })
 
     async def _handle_update_command(self, event: MessageEvent) -> str:
-        """Handle /update command — update Hermes Agent to the latest version.
+        """Handle /update command — update Mavis to the latest version.
 
-        Spawns ``hermes update`` in a detached session (via ``setsid``) so it
-        survives the gateway restart that ``hermes update`` may trigger. Marker
+        Spawns ``mavis update`` in a detached session (via ``setsid``) so it
+        survives the gateway restart that ``mavis update`` may trigger. Marker
         files are written so either the current gateway process or the next one
         can notify the user when the update finishes.
         """
@@ -5538,10 +5539,10 @@ class GatewayRunner:
         # Block non-messaging platforms (API server, webhooks, ACP)
         platform = event.source.platform
         if platform not in self._UPDATE_ALLOWED_PLATFORMS:
-            return "✗ /update is only available from messaging platforms. Run `hermes update` from the terminal."
+            return "✗ /update is only available from messaging platforms. Run `mavis update` from the terminal."
 
         if is_managed():
-            return f"✗ {format_managed_message('update Hermes Agent')}"
+            return f"✗ {format_managed_message('update Mavis')}"
 
         project_root = Path(__file__).parent.parent.resolve()
         git_dir = project_root / '.git'
@@ -5552,10 +5553,10 @@ class GatewayRunner:
         hermes_cmd = _resolve_hermes_bin()
         if not hermes_cmd:
             return (
-                "✗ Could not locate the `hermes` command. "
-                "Hermes is running, but the update command could not find the "
+                "✗ Could not locate the `mavis` command. "
+                "Mavis is running, but the update command could not find the "
                 "executable on PATH or via the current Python interpreter. "
-                "Try running `hermes update` manually in your terminal."
+                "Try running `mavis update` manually in your terminal."
             )
 
         pending_path = _hermes_home / ".update_pending.json"
@@ -5574,7 +5575,7 @@ class GatewayRunner:
         _tmp_pending.replace(pending_path)
         exit_code_path.unlink(missing_ok=True)
 
-        # Spawn `hermes update --gateway` detached so it survives gateway restart.
+        # Spawn `mavis update --gateway` detached so it survives gateway restart.
         # --gateway enables file-based IPC for interactive prompts (stash
         # restore, config migration) so the gateway can forward them to the
         # user instead of silently skipping them.
@@ -5633,7 +5634,7 @@ class GatewayRunner:
         stream_interval: float = 4.0,
         timeout: float = 1800.0,
     ) -> None:
-        """Watch ``hermes update --gateway``, streaming output + forwarding prompts.
+        """Watch ``mavis update --gateway``, streaming output + forwarding prompts.
 
         Polls ``.update_output.txt`` for new content and sends chunks to the
         user periodically.  Detects ``.update_prompt.json`` (written by the
@@ -5734,9 +5735,9 @@ class GatewayRunner:
                     exit_code_raw = exit_code_path.read_text().strip() or "1"
                     exit_code = int(exit_code_raw)
                     if exit_code == 0:
-                        await adapter.send(chat_id, "✅ Hermes update finished.")
+                        await adapter.send(chat_id, "✅ Mavis update finished.")
                     else:
-                        await adapter.send(chat_id, "❌ Hermes update failed (exit code {}).".format(exit_code))
+                        await adapter.send(chat_id, "❌ Mavis update failed (exit code {}).".format(exit_code))
                     logger.info("Update finished (exit=%s), notified %s", exit_code, session_key)
                 except Exception as e:
                     logger.warning("Update final notification failed: %s", e)
@@ -5808,7 +5809,7 @@ class GatewayRunner:
             exit_code_path.write_text("124")
             await _flush_buffer()
             try:
-                await adapter.send(chat_id, "❌ Hermes update timed out after 30 minutes.")
+                await adapter.send(chat_id, "❌ Mavis update timed out after 30 minutes.")
             except Exception:
                 pass
             for p in (pending_path, claimed_path, output_path,
@@ -5880,14 +5881,14 @@ class GatewayRunner:
                     if len(output) > 3500:
                         output = "…" + output[-3500:]
                     if exit_code == 0:
-                        msg = f"✅ Hermes update finished.\n\n```\n{output}\n```"
+                        msg = f"✅ Mavis update finished.\n\n```\n{output}\n```"
                     else:
-                        msg = f"❌ Hermes update failed.\n\n```\n{output}\n```"
+                        msg = f"❌ Mavis update failed.\n\n```\n{output}\n```"
                 else:
                     if exit_code == 0:
-                        msg = "✅ Hermes update finished successfully."
+                        msg = "✅ Mavis update finished successfully."
                     else:
-                        msg = "❌ Hermes update failed. Check the gateway logs or run `hermes update` manually for details."
+                        msg = "❌ Mavis update failed. Check the gateway logs or run `mavis update` manually for details."
                 await adapter.send(chat_id, msg)
                 logger.info(
                     "Sent post-update notification to %s:%s (exit=%s)",

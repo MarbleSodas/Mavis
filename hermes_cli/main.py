@@ -1,46 +1,46 @@
 #!/usr/bin/env python3
 """
-Hermes CLI - Main entry point.
+Mavis CLI - Main entry point.
 
 Usage:
-    hermes                     # Interactive chat (default)
-    hermes chat                # Interactive chat
-    hermes gateway             # Run gateway in foreground
-    hermes gateway start       # Start gateway as service
-    hermes gateway stop        # Stop gateway service
-    hermes gateway status      # Show gateway status
-    hermes gateway install     # Install gateway service
-    hermes gateway uninstall   # Uninstall gateway service
-    hermes setup               # Interactive setup wizard
-    hermes logout              # Clear stored authentication
-    hermes status              # Show status of all components
-    hermes cron                # Manage cron jobs
-    hermes cron list           # List cron jobs
-    hermes cron status         # Check if cron scheduler is running
-    hermes doctor              # Check configuration and dependencies
-    hermes honcho setup                    # Configure Honcho AI memory integration
-    hermes honcho status                   # Show Honcho config and connection status
-    hermes honcho sessions                 # List directory → session name mappings
-    hermes honcho map <name>               # Map current directory to a session name
-    hermes honcho peer                     # Show peer names and dialectic settings
-    hermes honcho peer --user NAME         # Set user peer name
-    hermes honcho peer --ai NAME           # Set AI peer name
-    hermes honcho peer --reasoning LEVEL   # Set dialectic reasoning level
-    hermes honcho mode                     # Show current memory mode
-    hermes honcho mode [hybrid|honcho|local]  # Set memory mode
-    hermes honcho tokens                   # Show token budget settings
-    hermes honcho tokens --context N       # Set session.context() token cap
-    hermes honcho tokens --dialectic N     # Set dialectic result char cap
-    hermes honcho identity                 # Show AI peer identity representation
-    hermes honcho identity <file>          # Seed AI peer identity from a file (SOUL.md etc.)
-    hermes honcho migrate                  # Step-by-step migration guide: OpenClaw native → Hermes + Honcho
-    hermes version             Show version
-    hermes update              Update to latest version
-    hermes uninstall           Uninstall Hermes Agent
-    hermes acp                 Run as an ACP server for editor integration
-    hermes sessions browse     Interactive session picker with search
+    mavis                     # Interactive chat (default)
+    mavis chat                # Interactive chat
+    mavis gateway             # Run gateway in foreground
+    mavis gateway start       # Start gateway as service
+    mavis gateway stop        # Stop gateway service
+    mavis gateway status      # Show gateway status
+    mavis gateway install     # Install gateway service
+    mavis gateway uninstall   # Uninstall gateway service
+    mavis setup               # Interactive setup wizard
+    mavis logout              # Clear stored authentication
+    mavis status              # Show status of all components
+    mavis cron                # Manage cron jobs
+    mavis cron list           # List cron jobs
+    mavis cron status         # Check if cron scheduler is running
+    mavis doctor              # Check configuration and dependencies
+    mavis honcho setup                    # Configure Honcho AI memory integration
+    mavis honcho status                   # Show Honcho config and connection status
+    mavis honcho sessions                 # List directory → session name mappings
+    mavis honcho map <name>               # Map current directory to a session name
+    mavis honcho peer                     # Show peer names and dialectic settings
+    mavis honcho peer --user NAME         # Set user peer name
+    mavis honcho peer --ai NAME           # Set AI peer name
+    mavis honcho peer --reasoning LEVEL   # Set dialectic reasoning level
+    mavis honcho mode                     # Show current memory mode
+    mavis honcho mode [hybrid|honcho|local]  # Set memory mode
+    mavis honcho tokens                   # Show token budget settings
+    mavis honcho tokens --context N       # Set session.context() token cap
+    mavis honcho tokens --dialectic N     # Set dialectic result char cap
+    mavis honcho identity                 # Show AI peer identity representation
+    mavis honcho identity <file>          # Seed AI peer identity from a file (SOUL.md etc.)
+    mavis honcho migrate                  # Step-by-step migration guide: OpenClaw native → Mavis + Honcho
+    mavis version             Show version
+    mavis update              Update to latest version
+    mavis uninstall           Uninstall Mavis
+    mavis acp                 Run as an ACP server for editor integration
+    mavis sessions browse     Interactive session picker with search
 
-    hermes claw migrate --dry-run  # Preview migration without changes
+    mavis claw migrate --dry-run  # Preview migration without changes
 """
 
 import argparse
@@ -50,16 +50,25 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from hermes_constants import (
+    APP_NAME,
+    CLI_NAME,
+    HOME_ENV_VAR,
+    LEGACY_HOME_ENV_VAR,
+    OPENROUTER_BASE_URL,
+)
+
+
 def _require_tty(command_name: str) -> None:
     """Exit with a clear error if stdin is not a terminal.
 
-    Interactive TUI commands (hermes tools, hermes setup, hermes model) use
+    Interactive TUI commands (mavis tools, mavis setup, mavis model) use
     curses or input() prompts that spin at 100% CPU when stdin is a pipe.
     This guard prevents accidental non-interactive invocation.
     """
     if not sys.stdin.isatty():
         print(
-            f"Error: 'hermes {command_name}' requires an interactive terminal.\n"
+            f"Error: '{CLI_NAME} {command_name}' requires an interactive terminal.\n"
             f"It cannot be run through a pipe or non-interactive subprocess.\n"
             f"Run it directly in your terminal instead.",
             file=sys.stderr,
@@ -78,7 +87,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # We intercept --profile/-p from sys.argv here and set the env var so that
 # every subsequent ``os.getenv("HERMES_HOME", ...)`` resolves correctly.
 # The flag is stripped from sys.argv so argparse never sees it.
-# Falls back to ~/.hermes/active_profile for sticky default.
+# Falls back to ~/.mavis/active_profile for sticky default.
 # ---------------------------------------------------------------------------
 def _apply_profile_override() -> None:
     """Pre-parse --profile/-p and set HERMES_HOME before module imports."""
@@ -97,10 +106,10 @@ def _apply_profile_override() -> None:
             consume = 1
             break
 
-    # 2. If no flag, check ~/.hermes/active_profile
+    # 2. If no flag, check ~/.mavis/active_profile
     if profile_name is None:
         try:
-            active_path = Path.home() / ".hermes" / "active_profile"
+            active_path = Path.home() / ".mavis" / "active_profile"
             if active_path.exists():
                 name = active_path.read_text().strip()
                 if name and name != "default":
@@ -121,7 +130,8 @@ def _apply_profile_override() -> None:
             # A bug in profiles.py must NEVER prevent hermes from starting
             print(f"Warning: profile override failed ({exc}), using default", file=sys.stderr)
             return
-        os.environ["HERMES_HOME"] = hermes_home
+        os.environ[HOME_ENV_VAR] = hermes_home
+        os.environ[LEGACY_HOME_ENV_VAR] = hermes_home
         # Strip the flag from argv so argparse doesn't choke
         if consume > 0:
             for i, arg in enumerate(argv):
@@ -136,13 +146,13 @@ def _apply_profile_override() -> None:
 
 _apply_profile_override()
 
-# Load .env from ~/.hermes/.env first, then project root as dev fallback.
+# Load .env from ~/.mavis/.env first, then project root as dev fallback.
 # User-managed env files should override stale shell exports on restart.
 from hermes_cli.config import get_hermes_home
 from hermes_cli.env_loader import load_hermes_dotenv
 load_hermes_dotenv(project_env=PROJECT_ROOT / '.env')
 
-# Initialize centralized file logging early — all `hermes` subcommands
+# Initialize centralized file logging early — all `mavis` subcommands
 # (chat, setup, gateway, config, etc.) write to agent.log + errors.log.
 try:
     from hermes_logging import setup_logging as _setup_logging
@@ -155,7 +165,6 @@ import time as _time
 from datetime import datetime
 
 from hermes_cli import __version__, __release_date__
-from hermes_constants import OPENROUTER_BASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -565,7 +574,7 @@ def cmd_chat(args):
                 args.resume = resolved
             else:
                 print(f"No session found matching '{continue_val}'.")
-                print("Use 'hermes sessions list' to see available sessions.")
+                print(f"Use '{CLI_NAME} sessions list' to see available sessions.")
                 sys.exit(1)
         else:
             # -c with no argument — continue the most recent session
@@ -588,9 +597,9 @@ def cmd_chat(args):
     # First-run guard: check if any provider is configured before launching
     if not _has_any_provider_configured():
         print()
-        print("It looks like Hermes isn't configured yet -- no API keys or providers found.")
+        print(f"It looks like {APP_NAME} isn't configured yet -- no API keys or providers found.")
         print()
-        print("  Run:  hermes setup")
+        print(f"  Run:  {CLI_NAME} setup")
         print()
 
         from hermes_cli.setup import is_interactive_stdin, print_noninteractive_setup_guidance
@@ -609,7 +618,7 @@ def cmd_chat(args):
             cmd_setup(args)
             return
         print()
-        print("You can run 'hermes setup' at any time to configure.")
+        print(f"You can run '{CLI_NAME} setup' at any time to configure.")
         sys.exit(1)
 
     # Start update check in background (runs while other init happens)
@@ -805,7 +814,7 @@ def cmd_whatsapp(args):
             print("  ✓ Session cleared")
         else:
             print("\n✓ WhatsApp is configured and paired!")
-            print("  Start the gateway with: hermes gateway")
+            print(f"  Start the gateway with: {CLI_NAME} gateway")
             return
 
     # ── Step 6: QR code pairing ──────────────────────────────────────────
@@ -836,23 +845,23 @@ def cmd_whatsapp(args):
         print()
         if wa_mode == "bot":
             print("  Next steps:")
-            print("    1. Start the gateway:  hermes gateway")
+            print(f"    1. Start the gateway:  {CLI_NAME} gateway")
             print("    2. Send a message to the bot's WhatsApp number")
             print("    3. The agent will reply automatically")
             print()
-            print("  Tip: Agent responses are prefixed with '⚕ Hermes Agent'")
+            print("  Tip: Agent responses are prefixed with '*Mavis*'")
         else:
             print("  Next steps:")
-            print("    1. Start the gateway:  hermes gateway")
+            print(f"    1. Start the gateway:  {CLI_NAME} gateway")
             print("    2. Open WhatsApp → Message Yourself")
             print("    3. Type a message — the agent will reply")
             print()
-            print("  Tip: Agent responses are prefixed with '⚕ Hermes Agent'")
+            print("  Tip: Agent responses are prefixed with '*Mavis*'")
             print("  so you can tell them apart from your own messages.")
         print()
-        print("  Or install as a service: hermes gateway install")
+        print(f"  Or install as a service: {CLI_NAME} gateway install")
     else:
-        print("⚠ Pairing may not have completed. Run 'hermes whatsapp' to try again.")
+        print(f"⚠ Pairing may not have completed. Run '{CLI_NAME} whatsapp' to try again.")
 
 
 def cmd_setup(args):
@@ -871,7 +880,7 @@ def cmd_model(args):
 def select_provider_and_model(args=None):
     """Core provider selection + model picking logic.
 
-    Shared by ``cmd_model`` (``hermes model``) and the setup wizard
+    Shared by ``cmd_model`` (``mavis model``) and the setup wizard
     (``setup_model_provider`` in setup.py).  Handles the full flow:
     provider picker, credential prompting, model selection, and config
     persistence.
@@ -1498,7 +1507,7 @@ def _model_flow_custom(config):
             _caller_model["api_key"] = effective_key
         _caller_model.pop("api_mode", None)
         config["model"] = _caller_model
-        print("Endpoint saved. Use `/model` in chat or `hermes model` to set a model.")
+        print(f"Endpoint saved. Use `/model` in chat or `{CLI_NAME} model` to set a model.")
 
     # Auto-save to custom_providers so it appears in the menu next time
     _save_custom_provider(effective_url, effective_key, model_name or "", context_length=context_length)
@@ -2398,7 +2407,7 @@ def _run_anthropic_oauth_flow(save_env_value):
         print("    1. Install Claude Code:  npm install -g @anthropic-ai/claude-code")
         print("    2. Run:                  claude setup-token")
         print("    3. Follow the browser prompts to authorize")
-        print("    4. Re-run:               hermes model")
+        print(f"    4. Re-run:               {CLI_NAME} model")
         print()
         print("  Or paste an existing setup-token now (sk-ant-oat-...):")
         print()
@@ -2544,7 +2553,7 @@ def _model_flow_anthropic(config, current_model=""):
 
 
 def cmd_login(args):
-    """Authenticate Hermes CLI with a provider."""
+    """Authenticate the Mavis CLI with a provider."""
     from hermes_cli.auth import login_command
     login_command(args)
 
@@ -2593,7 +2602,7 @@ def cmd_config(args):
 
 def cmd_version(args):
     """Show version."""
-    print(f"Hermes Agent v{__version__} ({__release_date__})")
+    print(f"{APP_NAME} v{__version__} ({__release_date__})")
     print(f"Project: {PROJECT_ROOT}")
     
     # Show Python version
@@ -2624,7 +2633,7 @@ def cmd_version(args):
 
 
 def cmd_uninstall(args):
-    """Uninstall Hermes Agent."""
+    """Uninstall Mavis."""
     _require_tty("uninstall")
     from hermes_cli.uninstall import run_uninstall
     run_uninstall(args)
@@ -2664,7 +2673,7 @@ def _gateway_prompt(prompt_text: str, default: str = "", timeout: float = 300.0)
     Writes a prompt marker file so the gateway can forward the question to the
     user, then polls for a response file.  Falls back to *default* on timeout.
 
-    Used by ``hermes update --gateway`` so interactive prompts (stash restore,
+    Used by ``mavis update --gateway`` so interactive prompts (stash restore,
     config migration) are forwarded to the messenger instead of being silently
     skipped.
     """
@@ -2710,7 +2719,7 @@ def _gateway_prompt(prompt_text: str, default: str = "", timeout: float = 300.0)
 
 
 def _update_via_zip(args):
-    """Update Hermes Agent by downloading a ZIP archive.
+    """Update Mavis by downloading a ZIP archive.
     
     Used on Windows when git file I/O is broken (antivirus, NTFS filter 
     drivers causing 'Invalid argument' errors on file creation).
@@ -2908,7 +2917,7 @@ def _restore_stashed_changes(
         print()
         print("⚠ Local changes were stashed before updating.")
         print("  Restoring them may reapply local customizations onto the updated codebase.")
-        print("  Review the result afterward if Hermes behaves unexpectedly.")
+        print(f"  Review the result afterward if {APP_NAME} behaves unexpectedly.")
         print("Restore local changes now? [Y/n]")
         if input_fn is not None:
             response = input_fn("Restore local changes now? [Y/n]", "y")
@@ -2957,7 +2966,7 @@ def _restore_stashed_changes(
         # Ask before resetting (if interactive)
         do_reset = True
         if prompt_user:
-            print("\nReset working tree to clean state so Hermes can run?")
+            print(f"\nReset working tree to clean state so {APP_NAME} can run?")
             print("  (You can re-apply your changes later with: git stash apply)")
             print("[Y/n] ", end="", flush=True)
             response = input().strip().lower()
@@ -2985,7 +2994,7 @@ def _restore_stashed_changes(
 
     stash_selector = _resolve_stash_selector(git_cmd, cwd, stash_ref)
     if stash_selector is None:
-        print("⚠ Local changes were restored, but Hermes couldn't find the stash entry to drop.")
+        print(f"⚠ Local changes were restored, but {APP_NAME} couldn't find the stash entry to drop.")
         print("  The stash was left in place. You can remove it manually after checking the result.")
         _print_stash_cleanup_guidance(stash_ref)
     else:
@@ -2996,7 +3005,7 @@ def _restore_stashed_changes(
             text=True,
         )
         if drop.returncode != 0:
-            print("⚠ Local changes were restored, but Hermes couldn't drop the saved stash entry.")
+            print(f"⚠ Local changes were restored, but {APP_NAME} couldn't drop the saved stash entry.")
             if drop.stdout.strip():
                 print(drop.stdout.strip())
             if drop.stderr.strip():
@@ -3005,12 +3014,14 @@ def _restore_stashed_changes(
             _print_stash_cleanup_guidance(stash_ref, stash_selector)
 
     print("⚠ Local changes were restored on top of the updated codebase.")
-    print("  Review `git diff` / `git status` if Hermes behaves unexpectedly.")
+    print(f"  Review `git diff` / `git status` if {APP_NAME} behaves unexpectedly.")
     return True
 
 # =========================================================================
-# Fork detection and upstream management for `hermes update`
+# Fork detection and upstream management for `mavis update`
 # =========================================================================
+
+MAVIS_INSTALL_SCRIPT_URL = "https://raw.githubusercontent.com/MarbleSodas/Mavis/main/scripts/install.sh"
 
 OFFICIAL_REPO_URLS = {
     "https://github.com/NousResearch/hermes-agent.git",
@@ -3238,7 +3249,7 @@ def _invalidate_update_cache():
     reports a stale "commits behind" count after a successful update.
 
     The git repo is shared across profiles — when one profile runs
-    ``hermes update``, every profile is now current.
+    ``mavis update``, every profile is now current.
     """
     homes = []
     # Default profile home
@@ -3337,19 +3348,19 @@ def _install_python_dependencies_with_optional_fallback(
 
 
 def cmd_update(args):
-    """Update Hermes Agent to the latest version."""
+    """Update Mavis to the latest version."""
     import shutil
     from hermes_cli.config import is_managed, managed_error
 
     if is_managed():
-        managed_error("update Hermes Agent")
+        managed_error("update Mavis")
         return
 
     gateway_mode = getattr(args, "gateway", False)
     # In gateway mode, use file-based IPC for prompts instead of stdin
     gw_input_fn = (lambda prompt, default="": _gateway_prompt(prompt, default)) if gateway_mode else None
     
-    print("⚕ Updating Hermes Agent...")
+    print("⚕ Updating Mavis...")
     print()
     
     # Try git-based update first, fall back to ZIP download on Windows
@@ -3362,7 +3373,7 @@ def cmd_update(args):
             use_zip_update = True
         else:
             print("✗ Not a git repository. Please reinstall:")
-            print("  curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash")
+            print(f"  curl -fsSL {MAVIS_INSTALL_SCRIPT_URL} | bash")
             sys.exit(1)
     
     # On Windows, git can fail with "unable to write loose object file: Invalid argument"
@@ -3663,7 +3674,7 @@ def cmd_update(args):
                 ).strip().lower()
             elif not (sys.stdin.isatty() and sys.stdout.isatty()):
                 print("  ℹ Non-interactive session — skipping config migration prompt.")
-                print("    Run 'hermes config migrate' later to apply any new config/env options.")
+                print(f"    Run '{CLI_NAME} config migrate' later to apply any new config/env options.")
                 response = "n"
             else:
                 try:
@@ -3681,10 +3692,10 @@ def cmd_update(args):
                     print()
                     print("✓ Configuration updated!")
                 if gateway_mode and missing_env:
-                    print("  ℹ API keys require manual entry: hermes config migrate")
+                    print(f"  ℹ API keys require manual entry: {CLI_NAME} config migrate")
             else:
                 print()
-                print("Skipped. Run 'hermes config migrate' later to configure.")
+                print(f"Skipped. Run '{CLI_NAME} config migrate' later to configure.")
         else:
             print("  ✓ Configuration is up to date")
         
@@ -3783,7 +3794,7 @@ def cmd_update(args):
                     print(f"  ✓ Restarted {svc}")
                 if killed_pids:
                     print(f"  → Stopped {len(killed_pids)} manual gateway process(es)")
-                    print("    Restart manually: hermes gateway run")
+                    print(f"    Restart manually: {CLI_NAME} gateway run")
                     # Also restart for each profile if needed
                     if len(killed_pids) > 1:
                         print("    (or: hermes -p <profile> gateway run  for each profile)")
@@ -3797,7 +3808,7 @@ def cmd_update(args):
         
         print()
         print("Tip: You can now select a provider and model:")
-        print("  hermes model              # Select provider and model")
+        print(f"  {CLI_NAME} model              # Select provider and model")
         
     except subprocess.CalledProcessError as e:
         if sys.platform == "win32":
@@ -3964,7 +3975,7 @@ def cmd_profile(args):
                 collision = check_alias_collision(name)
                 if collision:
                     print(f"\n⚠ Cannot create alias '{name}' — {collision}")
-                    print(f"  Choose a custom alias:  hermes profile alias {name} --name <custom>")
+                    print(f"  Choose a custom alias:  {CLI_NAME} profile alias {name} --name <custom>")
                     print(f"  Or access via flag:     hermes -p {name} chat")
                 else:
                     wrapper_path = create_wrapper_script(name)
@@ -4105,7 +4116,7 @@ def cmd_completion(args):
 
 
 def cmd_logs(args):
-    """View and filter Hermes log files."""
+    """View and filter Mavis log files."""
     from hermes_cli.logs import tail_log, list_logs
 
     log_name = getattr(args, "log_name", "agent") or "agent"
@@ -4125,43 +4136,43 @@ def cmd_logs(args):
 
 
 def main():
-    """Main entry point for hermes CLI."""
+    """Main entry point for the Mavis CLI."""
     parser = argparse.ArgumentParser(
-        prog="hermes",
-        description="Hermes Agent - AI assistant with tool-calling capabilities",
+        prog=CLI_NAME,
+        description="Mavis - voice-first AI agent with tool-calling capabilities",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    hermes                        Start interactive chat
-    hermes chat -q "Hello"        Single query mode
-    hermes -c                     Resume the most recent session
-    hermes -c "my project"        Resume a session by name (latest in lineage)
-    hermes --resume <session_id>  Resume a specific session by ID
-    hermes setup                  Run setup wizard
-    hermes logout                 Clear stored authentication
-    hermes auth add <provider>    Add a pooled credential
-    hermes auth list              List pooled credentials
-    hermes auth remove <p> <t>    Remove pooled credential by index, id, or label
-    hermes auth reset <provider>  Clear exhaustion status for a provider
-    hermes model                  Select default model
-    hermes config                 View configuration
-    hermes config edit            Edit config in $EDITOR
-    hermes config set model gpt-4 Set a config value
-    hermes gateway                Run messaging gateway
-    hermes -s hermes-agent-dev,github-auth
-    hermes -w                     Start in isolated git worktree
-    hermes gateway install        Install gateway background service
-    hermes sessions list          List past sessions
-    hermes sessions browse        Interactive session picker
-    hermes sessions rename ID T   Rename/title a session
-    hermes logs                   View agent.log (last 50 lines)
-    hermes logs -f                Follow agent.log in real time
-    hermes logs errors            View errors.log
-    hermes logs --since 1h        Lines from the last hour
-    hermes update                 Update to latest version
+    mavis                        Start interactive chat
+    mavis chat -q "Hello"        Single query mode
+    mavis -c                     Resume the most recent session
+    mavis -c "my project"        Resume a session by name (latest in lineage)
+    mavis --resume <session_id>  Resume a specific session by ID
+    mavis setup                  Run setup wizard
+    mavis logout                 Clear stored authentication
+    mavis auth add <provider>    Add a pooled credential
+    mavis auth list              List pooled credentials
+    mavis auth remove <p> <t>    Remove pooled credential by index, id, or label
+    mavis auth reset <provider>  Clear exhaustion status for a provider
+    mavis model                  Select default model
+    mavis config                 View configuration
+    mavis config edit            Edit config in $EDITOR
+    mavis config set model gpt-4 Set a config value
+    mavis gateway                Run messaging gateway
+    mavis -s hermes-agent-dev,github-auth
+    mavis -w                     Start in isolated git worktree
+    mavis gateway install        Install gateway background service
+    mavis sessions list          List past sessions
+    mavis sessions browse        Interactive session picker
+    mavis sessions rename ID T   Rename/title a session
+    mavis logs                   View agent.log (last 50 lines)
+    mavis logs -f                Follow agent.log in real time
+    mavis logs errors            View errors.log
+    mavis logs --since 1h        Lines from the last hour
+    mavis update                 Update to latest version
 
 For more help on a command:
-    hermes <command> --help
+    mavis <command> --help
 """
     )
     
@@ -4218,7 +4229,7 @@ For more help on a command:
     chat_parser = subparsers.add_parser(
         "chat",
         help="Interactive chat with the agent",
-        description="Start an interactive chat session with Hermes Agent"
+        description="Start an interactive chat session with Mavis"
     )
     chat_parser.add_argument(
         "-q", "--query",
@@ -4413,8 +4424,8 @@ For more help on a command:
     setup_parser = subparsers.add_parser(
         "setup",
         help="Interactive setup wizard",
-        description="Configure Hermes Agent with an interactive wizard. "
-                    "Run a specific section: hermes setup model|terminal|gateway|tools|agent"
+        description="Configure Mavis with an interactive wizard. "
+                    "Run a specific section: mavis setup model|terminal|gateway|tools|agent"
     )
     setup_parser.add_argument(
         "section",
@@ -4451,7 +4462,7 @@ For more help on a command:
     login_parser = subparsers.add_parser(
         "login",
         help="Authenticate with an inference provider",
-        description="Run OAuth device authorization flow for Hermes CLI"
+        description="Run OAuth device authorization flow for the Mavis CLI"
     )
     login_parser.add_argument(
         "--provider",
@@ -4548,7 +4559,7 @@ For more help on a command:
     status_parser = subparsers.add_parser(
         "status",
         help="Show status of all components",
-        description="Display status of Hermes Agent components"
+        description="Display status of Mavis components"
     )
     status_parser.add_argument(
         "--all",
@@ -4658,7 +4669,7 @@ For more help on a command:
     doctor_parser = subparsers.add_parser(
         "doctor",
         help="Check configuration and dependencies",
-        description="Diagnose issues with Hermes Agent setup"
+        description="Diagnose issues with Mavis setup"
     )
     doctor_parser.add_argument(
         "--fix",
@@ -4673,7 +4684,7 @@ For more help on a command:
     config_parser = subparsers.add_parser(
         "config",
         help="View and edit configuration",
-        description="Manage Hermes Agent configuration"
+        description="Manage Mavis configuration"
     )
     config_subparsers = config_parser.add_subparsers(dest="config_command")
     
@@ -4927,7 +4938,7 @@ For more help on a command:
             "Enable, disable, or list tools for CLI, Telegram, Discord, etc.\n\n"
             "Built-in toolsets use plain names (e.g. web, memory).\n"
             "MCP tools use server:tool notation (e.g. github:create_issue).\n\n"
-            "Run 'hermes tools' with no subcommand for the interactive configuration UI."
+            "Run 'mavis tools' with no subcommand for the interactive configuration UI."
         ),
     )
     tools_parser.add_argument(
@@ -4995,8 +5006,8 @@ For more help on a command:
         description=(
             "Manage MCP server connections and run Hermes as an MCP server.\n\n"
             "MCP servers provide additional tools via the Model Context Protocol.\n"
-            "Use 'hermes mcp add' to connect to a new server, or\n"
-            "'hermes mcp serve' to expose Hermes conversations over MCP."
+            "Use 'mavis mcp add' to connect to a new server, or\n"
+            "'mavis mcp serve' to expose Mavis conversations over MCP."
         ),
     )
     mcp_sub = mcp_parser.add_subparsers(dest="mcp_action")
@@ -5363,7 +5374,7 @@ For more help on a command:
     # =========================================================================
     update_parser = subparsers.add_parser(
         "update",
-        help="Update Hermes Agent to the latest version",
+        help="Update Mavis to the latest version",
         description="Pull the latest changes from git and reinstall dependencies"
     )
     update_parser.add_argument(
@@ -5377,8 +5388,8 @@ For more help on a command:
     # =========================================================================
     uninstall_parser = subparsers.add_parser(
         "uninstall",
-        help="Uninstall Hermes Agent",
-        description="Remove Hermes Agent from your system. Can keep configs/data for reinstall."
+        help="Uninstall Mavis",
+        description="Remove Mavis from your system. Can keep configs/data for reinstall."
     )
     uninstall_parser.add_argument(
         "--full",
@@ -5397,12 +5408,12 @@ For more help on a command:
     # =========================================================================
     acp_parser = subparsers.add_parser(
         "acp",
-        help="Run Hermes Agent as an ACP (Agent Client Protocol) server",
-        description="Start Hermes Agent in ACP mode for editor integration (VS Code, Zed, JetBrains)",
+        help="Run Mavis as an ACP (Agent Client Protocol) server",
+        description="Start Mavis in ACP mode for editor integration (VS Code, Zed, JetBrains)",
     )
 
     def cmd_acp(args):
-        """Launch Hermes Agent as an ACP server."""
+        """Launch Mavis as an ACP server."""
         try:
             from acp_adapter.entry import main as acp_main
             acp_main()
@@ -5418,7 +5429,7 @@ For more help on a command:
     # =========================================================================
     profile_parser = subparsers.add_parser(
         "profile",
-        help="Manage profiles — multiple isolated Hermes instances",
+        help="Manage profiles — multiple isolated Mavis instances",
     )
     profile_subparsers = profile_parser.add_subparsers(dest="profile_action")
 
@@ -5486,20 +5497,20 @@ For more help on a command:
     # =========================================================================
     logs_parser = subparsers.add_parser(
         "logs",
-        help="View and filter Hermes log files",
+        help="View and filter Mavis log files",
         description="View, tail, and filter agent.log / errors.log / gateway.log",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
-    hermes logs                    Show last 50 lines of agent.log
-    hermes logs -f                 Follow agent.log in real time
-    hermes logs errors             Show last 50 lines of errors.log
-    hermes logs gateway -n 100     Show last 100 lines of gateway.log
-    hermes logs --level WARNING    Only show WARNING and above
-    hermes logs --session abc123   Filter by session ID
-    hermes logs --since 1h         Lines from the last hour
-    hermes logs --since 30m -f     Follow, starting from 30 min ago
-    hermes logs list               List available log files with sizes
+    mavis logs                    Show last 50 lines of agent.log
+    mavis logs -f                 Follow agent.log in real time
+    mavis logs errors             Show last 50 lines of errors.log
+    mavis logs gateway -n 100     Show last 100 lines of gateway.log
+    mavis logs --level WARNING    Only show WARNING and above
+    mavis logs --session abc123   Filter by session ID
+    mavis logs --since 1h         Lines from the last hour
+    mavis logs --since 30m -f     Follow, starting from 30 min ago
+    mavis logs list               List available log files with sizes
 """,
     )
     logs_parser.add_argument(

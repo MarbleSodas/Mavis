@@ -6025,7 +6025,7 @@ class HermesCLI:
                 _cprint(f"  {_DIM}{line}{_RST}")
             if reqs["missing_packages"]:
                 _cprint(f"\n  {_BOLD}Install: pip install {' '.join(reqs['missing_packages'])}{_RST}")
-                _cprint(f"  {_DIM}Or: pip install hermes-agent[voice]{_RST}")
+                _cprint(f"  {_DIM}Or: pip install mavis-agent[voice]{_RST}")
             return
 
         with self._voice_lock:
@@ -6035,7 +6035,7 @@ class HermesCLI:
         try:
             from hermes_cli.config import load_config
             voice_config = load_config().get("voice", {})
-            if voice_config.get("auto_tts", False):
+            if voice_config.get("auto_tts", True):
                 with self._voice_lock:
                     self._voice_tts = True
         except Exception:

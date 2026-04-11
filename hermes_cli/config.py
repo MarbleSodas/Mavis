@@ -1,15 +1,15 @@
 """
-Configuration management for Hermes Agent.
+Configuration management for Mavis.
 
-Config files are stored in ~/.hermes/ for easy access:
-- ~/.hermes/config.yaml  - All settings (model, toolsets, terminal, etc.)
-- ~/.hermes/.env         - API keys and secrets
+Config files are stored in ~/.mavis/ for easy access:
+- ~/.mavis/config.yaml  - All settings (model, toolsets, terminal, etc.)
+- ~/.mavis/.env         - API keys and secrets
 
 This module provides:
-- hermes config          - Show current configuration
-- hermes config edit     - Open config in editor
-- hermes config set      - Set a specific value
-- hermes config wizard   - Re-run setup wizard
+- mavis config          - Show current configuration
+- mavis config edit     - Open config in editor
+- mavis config set      - Set a specific value
+- mavis config wizard   - Re-run setup wizard
 """
 
 import os
@@ -93,7 +93,7 @@ def get_managed_update_command() -> Optional[str]:
     """Return the preferred upgrade command for a managed install."""
     managed_system = get_managed_system()
     if managed_system == "Homebrew":
-        return "brew upgrade hermes-agent"
+        return "brew upgrade mavis-agent"
     if managed_system == "NixOS":
         return "sudo nixos-rebuild switch"
     return None
@@ -101,10 +101,10 @@ def get_managed_update_command() -> Optional[str]:
 
 def recommended_update_command() -> str:
     """Return the best update command for the current installation."""
-    return get_managed_update_command() or "hermes update"
+    return get_managed_update_command() or "mavis update"
 
 
-def format_managed_message(action: str = "modify this Hermes installation") -> str:
+def format_managed_message(action: str = "modify this Mavis installation") -> str:
     """Build a user-facing error for managed installs."""
     managed_system = get_managed_system() or "a package manager"
     raw = os.getenv("HERMES_MANAGED", "").strip().lower()
@@ -112,24 +112,24 @@ def format_managed_message(action: str = "modify this Hermes installation") -> s
     if managed_system == "NixOS":
         env_hint = "true" if raw in _MANAGED_TRUE_VALUES else raw or "true"
         return (
-            f"Cannot {action}: this Hermes installation is managed by NixOS "
+            f"Cannot {action}: this Mavis installation is managed by NixOS "
             f"(HERMES_MANAGED={env_hint}).\n"
-            "Edit services.hermes-agent.settings in your configuration.nix and run:\n"
+            "Edit services.mavis-agent.settings in your configuration.nix and run:\n"
             "  sudo nixos-rebuild switch"
         )
 
     if managed_system == "Homebrew":
         env_hint = raw or "homebrew"
         return (
-            f"Cannot {action}: this Hermes installation is managed by Homebrew "
+            f"Cannot {action}: this Mavis installation is managed by Homebrew "
             f"(HERMES_MANAGED={env_hint}).\n"
             "Use:\n"
-            "  brew upgrade hermes-agent"
+            "  brew upgrade mavis-agent"
         )
 
     return (
-        f"Cannot {action}: this Hermes installation is managed by {managed_system}.\n"
-        "Use your package manager to upgrade or reinstall Hermes."
+        f"Cannot {action}: this Mavis installation is managed by {managed_system}.\n"
+        "Use your package manager to upgrade or reinstall Mavis."
     )
 
 def managed_error(action: str = "modify configuration"):
@@ -183,7 +183,7 @@ def _ensure_default_soul_md(home: Path) -> None:
 
 
 def ensure_hermes_home():
-    """Ensure ~/.hermes directory structure exists with secure permissions."""
+    """Ensure ~/.mavis directory structure exists with secure permissions."""
     home = get_hermes_home()
     home.mkdir(parents=True, exist_ok=True)
     _secure_dir(home)
@@ -426,9 +426,11 @@ DEFAULT_CONFIG = {
     "voice": {
         "record_key": "ctrl+b",
         "max_recording_seconds": 120,
-        "auto_tts": False,
+        "auto_tts": True,
         "silence_threshold": 200,     # RMS below this = silence (0-32767)
         "silence_duration": 3.0,      # Seconds of silence before auto-stop
+        "ready": False,
+        "last_validation": "",
     },
     
     "human_delay": {
@@ -470,7 +472,7 @@ DEFAULT_CONFIG = {
     
     # Skills — external skill directories for sharing skills across tools/agents.
     # Each path is expanded (~, ${VAR}) and resolved.  Read-only — skill creation
-    # always goes to ~/.hermes/skills/.
+    # always goes to ~/.mavis/skills/.
     "skills": {
         "external_dirs": [],   # e.g. ["~/.agents/skills", "/shared/team-skills"]
     },
@@ -495,7 +497,7 @@ DEFAULT_CONFIG = {
     # WhatsApp platform settings (gateway mode)
     "whatsapp": {
         # Reply prefix prepended to every outgoing WhatsApp message.
-        # Default (None) uses the built-in "⚕ *Hermes Agent*" header.
+        # Default (None) uses the built-in "*Mavis*" header.
         # Set to "" (empty string) to disable the header entirely.
         # Supports \n for newlines, e.g. "🤖 *My Bot*\n──────\n"
     },
@@ -538,7 +540,7 @@ DEFAULT_CONFIG = {
         "wrap_response": True,
     },
 
-    # Logging — controls file logging to ~/.hermes/logs/.
+    # Logging — controls file logging to ~/.mavis/logs/.
     # agent.log captures INFO+ (all agent activity); errors.log captures WARNING+.
     "logging": {
         "level": "INFO",       # Minimum level for agent.log: DEBUG, INFO, WARNING
@@ -1372,7 +1374,7 @@ def validate_config_structure(config: Optional[Dict[str, Any]] = None) -> List["
         try:
             config = load_config()
         except Exception:
-            return [ConfigIssue("error", "Could not load config.yaml", "Run 'hermes setup' to create a valid config")]
+            return [ConfigIssue("error", "Could not load config.yaml", "Run 'mavis setup' to create a valid config")]
 
     issues: List[ConfigIssue] = []
 
@@ -1501,7 +1503,7 @@ def print_config_warnings(config: Optional[Dict[str, Any]] = None) -> None:
     for ci in issues:
         marker = "\033[31m✗\033[0m" if ci.severity == "error" else "\033[33m⚠\033[0m"
         lines.append(f"  {marker} {ci.message}")
-    lines.append("  \033[2mRun 'hermes doctor' for fix suggestions.\033[0m")
+    lines.append("  \033[2mRun 'mavis doctor' for fix suggestions.\033[0m")
     sys.stderr.write("\n".join(lines) + "\n\n")
 
 
@@ -1883,7 +1885,7 @@ def _normalize_max_turns_config(config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def read_raw_config() -> Dict[str, Any]:
-    """Read ~/.hermes/config.yaml as-is, without merging defaults or migrating.
+    """Read ~/.mavis/config.yaml as-is, without merging defaults or migrating.
 
     Returns the raw YAML dict, or ``{}`` if the file doesn't exist or can't
     be parsed.  Use this for lightweight config reads where you just need a
@@ -1901,7 +1903,7 @@ def read_raw_config() -> Dict[str, Any]:
 
 
 def load_config() -> Dict[str, Any]:
-    """Load configuration from ~/.hermes/config.yaml."""
+    """Load configuration from ~/.mavis/config.yaml."""
     import copy
     ensure_hermes_home()
     config_path = get_config_path()
@@ -2023,7 +2025,7 @@ _COMMENTED_SECTIONS = """
 
 
 def save_config(config: Dict[str, Any]):
-    """Save configuration to ~/.hermes/config.yaml."""
+    """Save configuration to ~/.mavis/config.yaml."""
     if is_managed():
         managed_error("save configuration")
         return
@@ -2052,7 +2054,7 @@ def save_config(config: Dict[str, Any]):
 
 
 def load_env() -> Dict[str, str]:
-    """Load environment variables from ~/.hermes/.env."""
+    """Load environment variables from ~/.mavis/.env."""
     env_path = get_env_path()
     env_vars = {}
     
@@ -2122,7 +2124,7 @@ def _sanitize_env_lines(lines: list) -> list:
 
 
 def sanitize_env_file() -> int:
-    """Read, sanitize, and rewrite ~/.hermes/.env in place.
+    """Read, sanitize, and rewrite ~/.mavis/.env in place.
 
     Returns the number of lines that were fixed (concatenation splits +
     placeholder removals).  Returns 0 when no changes are needed.
@@ -2167,7 +2169,7 @@ def sanitize_env_file() -> int:
 
 
 def save_env_value(key: str, value: str):
-    """Save or update a value in ~/.hermes/.env."""
+    """Save or update a value in ~/.mavis/.env."""
     if is_managed():
         managed_error(f"set {key}")
         return
@@ -2229,7 +2231,7 @@ def save_env_value(key: str, value: str):
 
 
 def remove_env_value(key: str) -> bool:
-    """Remove a key from ~/.hermes/.env and os.environ.
+    """Remove a key from ~/.mavis/.env and os.environ.
 
     Returns True if the key was found and removed, False otherwise.
     """
@@ -2305,7 +2307,7 @@ def save_env_value_secure(key: str, value: str) -> Dict[str, Any]:
 
 
 def get_env_value(key: str) -> Optional[str]:
-    """Get a value from ~/.hermes/.env or environment."""
+    """Get a value from ~/.mavis/.env or environment."""
     # Check environment first
     if key in os.environ:
         return os.environ[key]
@@ -2484,7 +2486,7 @@ def show_config():
     print(color("─" * 60, Colors.DIM))
     print(color("  hermes config edit     # Edit config file", Colors.DIM))
     print(color("  hermes config set <key> <value>", Colors.DIM))
-    print(color("  hermes setup           # Run setup wizard", Colors.DIM))
+    print(color("  mavis setup            # Run setup wizard", Colors.DIM))
     print()
 
 
@@ -2726,7 +2728,7 @@ def config_command(args):
         if missing_config:
             print()
             print(color(f"  {len(missing_config)} new config option(s) available", Colors.YELLOW))
-            print("    Run 'hermes config migrate' to add them")
+            print("    Run 'mavis config migrate' to add them")
         
         print()
     
