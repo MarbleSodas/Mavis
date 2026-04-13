@@ -28,11 +28,18 @@ def _make_voice_cli(**overrides):
     cli._voice_recording = False
     cli._voice_processing = False
     cli._voice_continuous = False
+    cli._voice_activation_mode = "ptt"
+    cli._voice_hotword_thread = None
+    cli._voice_hotword_stop = None
+    cli._voice_hotword_status = "idle"
+    cli._voice_auto_started = False
     cli._voice_tts_done = threading.Event()
     cli._voice_tts_done.set()
     cli._pending_input = queue.Queue()
     cli._app = None
     cli.console = SimpleNamespace(width=80)
+    cli._start_hotword_listener = MagicMock()
+    cli._stop_hotword_listener = MagicMock()
     for k, v in overrides.items():
         setattr(cli, k, v)
     return cli
@@ -134,6 +141,7 @@ class TestVoiceCommandParsing:
         """Verify subcommand extraction from /voice commands."""
         test_cases = [
             ("/voice on", "on"),
+            ("/voice ptt", "ptt"),
             ("/voice off", "off"),
             ("/voice tts", "tts"),
             ("/voice status", "status"),
@@ -814,7 +822,13 @@ class TestHandleVoiceCommandReal:
     def test_on_calls_enable(self, _cp):
         cli = self._cli()
         cli._handle_voice_command("/voice on")
-        cli._enable_voice_mode.assert_called_once()
+        cli._enable_voice_mode.assert_called_once_with(activation_mode="hotword")
+
+    @patch("cli._cprint")
+    def test_ptt_calls_enable(self, _cp):
+        cli = self._cli()
+        cli._handle_voice_command("/voice ptt")
+        cli._enable_voice_mode.assert_called_once_with(activation_mode="ptt")
 
     @patch("cli._cprint")
     def test_off_calls_disable(self, _cp):
@@ -846,7 +860,7 @@ class TestHandleVoiceCommandReal:
         cli = self._cli()
         cli._voice_mode = False
         cli._handle_voice_command("/voice")
-        cli._enable_voice_mode.assert_called_once()
+        cli._enable_voice_mode.assert_called_once_with(activation_mode="hotword")
 
     @patch("cli._cprint")
     def test_unknown_subcommand(self, mock_cp):
@@ -865,13 +879,15 @@ class TestEnableVoiceModeReal:
     @patch("cli._cprint")
     @patch("hermes_cli.config.load_config", return_value={"voice": {}})
     @patch("tools.voice_mode.check_voice_requirements",
-           return_value={"available": True, "details": "OK"})
+           return_value={"available": True, "details": "OK", "missing_packages": []})
     @patch("tools.voice_mode.detect_audio_environment",
            return_value={"available": True, "warnings": []})
     def test_success_sets_voice_mode(self, _env, _req, _cfg, _cp):
         cli = _make_voice_cli()
         cli._enable_voice_mode()
         assert cli._voice_mode is True
+        assert cli._voice_activation_mode == "hotword"
+        cli._start_hotword_listener.assert_called_once()
 
     @patch("cli._cprint")
     def test_already_enabled_noop(self, _cp):
@@ -901,7 +917,7 @@ class TestEnableVoiceModeReal:
     @patch("cli._cprint")
     @patch("hermes_cli.config.load_config", return_value={"voice": {"auto_tts": True}})
     @patch("tools.voice_mode.check_voice_requirements",
-           return_value={"available": True, "details": "OK"})
+           return_value={"available": True, "details": "OK", "missing_packages": []})
     @patch("tools.voice_mode.detect_audio_environment",
            return_value={"available": True, "warnings": []})
     def test_auto_tts_from_config(self, _env, _req, _cfg, _cp):
@@ -912,7 +928,7 @@ class TestEnableVoiceModeReal:
     @patch("cli._cprint")
     @patch("hermes_cli.config.load_config", return_value={"voice": {}})
     @patch("tools.voice_mode.check_voice_requirements",
-           return_value={"available": True, "details": "OK"})
+           return_value={"available": True, "details": "OK", "missing_packages": []})
     @patch("tools.voice_mode.detect_audio_environment",
            return_value={"available": True, "warnings": []})
     def test_auto_tts_default(self, _env, _req, _cfg, _cp):
@@ -923,13 +939,25 @@ class TestEnableVoiceModeReal:
     @patch("cli._cprint")
     @patch("hermes_cli.config.load_config", side_effect=Exception("broken config"))
     @patch("tools.voice_mode.check_voice_requirements",
-           return_value={"available": True, "details": "OK"})
+           return_value={"available": True, "details": "OK", "missing_packages": []})
     @patch("tools.voice_mode.detect_audio_environment",
            return_value={"available": True, "warnings": []})
     def test_config_exception_still_enables(self, _env, _req, _cfg, _cp):
         cli = _make_voice_cli()
         cli._enable_voice_mode()
         assert cli._voice_mode is True
+
+    @patch("cli._cprint")
+    @patch("hermes_cli.config.load_config", return_value={"voice": {"auto_tts": True}})
+    @patch("tools.voice_mode.check_voice_requirements",
+           return_value={"available": True, "details": "OK", "missing_packages": []})
+    @patch("tools.voice_mode.detect_audio_environment",
+           return_value={"available": True, "warnings": []})
+    def test_ptt_mode_stops_hotword_listener(self, _env, _req, _cfg, _cp):
+        cli = _make_voice_cli()
+        cli._enable_voice_mode(activation_mode="ptt")
+        assert cli._voice_activation_mode == "ptt"
+        cli._stop_hotword_listener.assert_called_once()
 
 
 class TestDisableVoiceModeReal:
@@ -944,6 +972,7 @@ class TestDisableVoiceModeReal:
         assert cli._voice_mode is False
         assert cli._voice_tts is False
         assert cli._voice_continuous is False
+        cli._stop_hotword_listener.assert_called_once()
 
     @patch("cli._cprint")
     @patch("tools.voice_mode.stop_playback")
@@ -982,6 +1011,48 @@ class TestDisableVoiceModeReal:
         cli = _make_voice_cli(_voice_mode=True)
         cli._disable_voice_mode()
         assert cli._voice_mode is False
+
+
+class TestVoiceAutoStart:
+    @staticmethod
+    def _run_thread_immediately(target=None, args=(), kwargs=None, **_unused):
+        kwargs = kwargs or {}
+
+        class _ImmediateThread:
+            def start(self_nonlocal):
+                target(*args, **kwargs)
+
+        return _ImmediateThread()
+
+    @patch("hermes_cli.config.load_config", return_value={"voice": {
+        "auto_start": True,
+        "ready": True,
+        "activation_mode": "hotword",
+    }})
+    @patch("cli.threading.Thread")
+    def test_auto_start_enables_hotword_mode(self, mock_thread, _cfg):
+        mock_thread.side_effect = self._run_thread_immediately
+        cli = _make_voice_cli()
+        cli._enable_voice_mode = MagicMock()
+
+        cli._maybe_auto_start_voice()
+
+        cli._enable_voice_mode.assert_called_once_with(activation_mode="hotword", auto_start=True)
+
+    @patch("hermes_cli.config.load_config", return_value={"voice": {
+        "auto_start": False,
+        "ready": True,
+        "activation_mode": "hotword",
+    }})
+    @patch("cli.threading.Thread")
+    def test_auto_start_skips_when_disabled(self, mock_thread, _cfg):
+        cli = _make_voice_cli()
+        cli._enable_voice_mode = MagicMock()
+
+        cli._maybe_auto_start_voice()
+
+        cli._enable_voice_mode.assert_not_called()
+        mock_thread.assert_not_called()
 
 
 class TestVoiceSpeakResponseReal:

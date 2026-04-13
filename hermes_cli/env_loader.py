@@ -7,7 +7,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from hermes_constants import DEFAULT_HOME_DIRNAME, HOME_ENV_VAR, LEGACY_HOME_ENV_VAR
+from hermes_constants import DEFAULT_HOME_DIRNAME, HOME_ENV_VAR
 
 
 def _load_dotenv_with_fallback(path: Path, *, override: bool) -> None:
@@ -35,7 +35,6 @@ def load_hermes_dotenv(
     home_path = Path(
         hermes_home
         or os.getenv(HOME_ENV_VAR)
-        or os.getenv(LEGACY_HOME_ENV_VAR)
         or (Path.home() / DEFAULT_HOME_DIRNAME)
     )
     user_env = home_path / ".env"

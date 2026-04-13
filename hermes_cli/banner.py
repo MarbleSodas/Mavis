@@ -1,7 +1,4 @@
-"""Welcome banner, ASCII art, skills summary, and update check for the CLI.
-
-Pure display functions with no HermesCLI state dependency.
-"""
+"""Welcome banner, ASCII art, skills summary, and update check for the CLI."""
 
 import json
 import logging
@@ -11,7 +8,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from hermes_constants import get_hermes_home
+from hermes_constants import APP_NAME, get_hermes_home
 from typing import Dict, List, Optional
 
 from rich.console import Console
@@ -67,33 +64,29 @@ def _skin_branding(key: str, fallback: str) -> str:
 
 from hermes_cli import __version__ as VERSION, __release_date__ as RELEASE_DATE
 
-HERMES_AGENT_LOGO = """[bold #FFD700]██╗  ██╗███████╗██████╗ ███╗   ███╗███████╗███████╗       █████╗  ██████╗ ███████╗███╗   ██╗████████╗[/]
-[bold #FFD700]██║  ██║██╔════╝██╔══██╗████╗ ████║██╔════╝██╔════╝      ██╔══██╗██╔════╝ ██╔════╝████╗  ██║╚══██╔══╝[/]
-[#FFBF00]███████║█████╗  ██████╔╝██╔████╔██║█████╗  ███████╗█████╗███████║██║  ███╗█████╗  ██╔██╗ ██║   ██║[/]
-[#FFBF00]██╔══██║██╔══╝  ██╔══██╗██║╚██╔╝██║██╔══╝  ╚════██║╚════╝██╔══██║██║   ██║██╔══╝  ██║╚██╗██║   ██║[/]
-[#CD7F32]██║  ██║███████╗██║  ██║██║ ╚═╝ ██║███████╗███████║      ██║  ██║╚██████╔╝███████╗██║ ╚████║   ██║[/]
-[#CD7F32]╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚══════╝╚══════╝      ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝[/]"""
+HERMES_AGENT_LOGO = """[bold #FFD700]███╗   ███╗ █████╗ ██╗   ██╗██╗███████╗[/]
+[bold #FFD700]████╗ ████║██╔══██╗██║   ██║██║██╔════╝[/]
+[#FFBF00]██╔████╔██║███████║██║   ██║██║███████╗[/]
+[#FFBF00]██║╚██╔╝██║██╔══██║╚██╗ ██╔╝██║╚════██║[/]
+[#CD7F32]██║ ╚═╝ ██║██║  ██║ ╚████╔╝ ██║███████║[/]
+[#CD7F32]╚═╝     ╚═╝╚═╝  ╚═╝  ╚═══╝  ╚═╝╚══════╝[/]"""
 
-HERMES_CADUCEUS = """[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡀⠀⣀⣀⠀⢀⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#CD7F32]⠀⠀⠀⠀⠀⠀⢀⣠⣴⣾⣿⣿⣇⠸⣿⣿⠇⣸⣿⣿⣷⣦⣄⡀⠀⠀⠀⠀⠀⠀[/]
-[#FFBF00]⠀⢀⣠⣴⣶⠿⠋⣩⡿⣿⡿⠻⣿⡇⢠⡄⢸⣿⠟⢿⣿⢿⣍⠙⠿⣶⣦⣄⡀⠀[/]
-[#FFBF00]⠀⠀⠉⠉⠁⠶⠟⠋⠀⠉⠀⢀⣈⣁⡈⢁⣈⣁⡀⠀⠉⠀⠙⠻⠶⠈⠉⠉⠀⠀[/]
-[#FFD700]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⣿⡿⠛⢁⡈⠛⢿⣿⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#FFD700]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠿⣿⣦⣤⣈⠁⢠⣴⣿⠿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#FFBF00]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠻⢿⣿⣦⡉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#FFBF00]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢷⣦⣈⠛⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣴⠦⠈⠙⠿⣦⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣿⣤⡈⠁⢤⣿⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⠷⠄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⠑⢶⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠁⢰⡆⠈⡿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⠈⣡⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]
-[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀[/]"""
+HERMES_CADUCEUS = """[#CD7F32]⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀[/]
+[#CD7F32]⠀⠀⠀⠀⠀⣠⣶⠟⠋⠀⠀⠀⠙⠻⣶⣄⠀⠀⠀⠀⠀[/]
+[#FFBF00]⠀⠀⠀⠀⣰⡿⠁⠀⢀⣶⣶⣶⡀⠀⠈⢿⣆⠀⠀⠀⠀[/]
+[#FFBF00]⠀⠀⠀⢠⣿⠁⠀⣰⡿⠋⠉⠻⣿⣆⠀⠈⣿⡄⠀⠀⠀[/]
+[#FFD700]⠀⠀⠀⣾⡇⠀⣾⡟⠀⠀⠀⠀⢻⣷⠀⢸⣷⠀⠀⠀[/]
+[#FFD700]⠀⠀⠀⣿⡇⠀⣿⡇⠀⢀⣤⡀⢸⣿⠀⢸⣿⠀⠀⠀[/]
+[#FFBF00]⠀⠀⠀⢿⣧⠀⠹⣷⣤⣾⣿⣷⣤⡿⠀⣼⡿⠀⠀⠀[/]
+[#FFBF00]⠀⠀⠀⠀⠻⣷⣄⡀⠉⠛⠛⠉⢀⣠⣾⠟⠀⠀⠀⠀[/]
+[#CD7F32]⠀⠀⠀⠀⠀⠙⠿⣶⣤⣀⣀⣤⣶⠿⠋⠀⠀⠀⠀⠀[/]
+[#B8860B]⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀[/]
+[#B8860B]⠀⠀⠀⠀⠀⠀⠀mavis voice ready⠀⠀⠀⠀⠀⠀[/]"""
 
 COMPACT_BANNER = """
 [bold #FFD700]╔══════════════════════════════════════════════════════════════╗[/]
-[bold #FFD700]║[/]  [#FFBF00]⚕ NOUS HERMES[/] [dim #B8860B]- AI Agent Framework[/]              [bold #FFD700]║[/]
-[bold #FFD700]║[/]  [#CD7F32]Messenger of the Digital Gods[/]    [dim #B8860B]Nous Research[/]   [bold #FFD700]║[/]
+[bold #FFD700]║[/]  [#FFBF00]MAVIS[/] [dim #B8860B]- Speech-ready agent harness[/]          [bold #FFD700]║[/]
+[bold #FFD700]║[/]  [#CD7F32]Direct Hermes fork[/]            [dim #B8860B]Mavis[/]           [bold #FFD700]║[/]
 [bold #FFD700]╚══════════════════════════════════════════════════════════════╝[/]
 """
 
@@ -134,11 +127,11 @@ def check_for_updates() -> Optional[int]:
     """Check how many commits behind origin/main the local repo is.
 
     Does a ``git fetch`` at most once every 6 hours (cached to
-    ``~/.hermes/.update_check``).  Returns the number of commits behind,
+    ``~/.mavis/.update_check``).  Returns the number of commits behind,
     or ``None`` if the check fails or isn't applicable.
     """
     hermes_home = get_hermes_home()
-    repo_dir = hermes_home / "hermes-agent"
+    repo_dir = hermes_home / "mavis-agent"
     cache_file = hermes_home / ".update_check"
 
     # Must be a git repo — fall back to project root for dev installs
@@ -193,7 +186,7 @@ def check_for_updates() -> Optional[int]:
 def _resolve_repo_dir() -> Optional[Path]:
     """Return the active Hermes git checkout, or None if this isn't a git install."""
     hermes_home = get_hermes_home()
-    repo_dir = hermes_home / "hermes-agent"
+    repo_dir = hermes_home / "mavis-agent"
     if not (repo_dir / ".git").exists():
         repo_dir = Path(__file__).parent.parent.resolve()
     return repo_dir if (repo_dir / ".git").exists() else None
@@ -247,7 +240,7 @@ def get_git_banner_state(repo_dir: Optional[Path] = None) -> Optional[dict]:
 
 def format_banner_version_label() -> str:
     """Return the version label shown in the startup banner title."""
-    base = f"Hermes Agent v{VERSION} ({RELEASE_DATE})"
+    base = f"{APP_NAME} v{VERSION} ({RELEASE_DATE})"
     state = get_git_banner_state()
     if not state:
         return base
@@ -378,7 +371,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     if len(model_short) > 28:
         model_short = model_short[:25] + "..."
     ctx_str = f" [dim {dim}]·[/] [dim {dim}]{_format_context_length(context_length)} context[/]" if context_length else ""
-    left_lines.append(f"[{accent}]{model_short}[/]{ctx_str} [dim {dim}]·[/] [dim {dim}]Nous Research[/]")
+    left_lines.append(f"[{accent}]{model_short}[/]{ctx_str} [dim {dim}]·[/] [dim {dim}]{APP_NAME}[/]")
     left_lines.append(f"[dim {dim}]{cwd}[/]")
     if session_id:
         left_lines.append(f"[dim {session_color}]Session: {session_id}[/]")
@@ -517,7 +510,7 @@ def build_welcome_banner(console: Console, model: str, cwd: str,
     right_content = "\n".join(right_lines)
     layout_table.add_row(left_content, right_content)
 
-    agent_name = _skin_branding("agent_name", "Hermes Agent")
+    agent_name = _skin_branding("agent_name", APP_NAME)
     title_color = _skin_color("banner_title", "#FFD700")
     border_color = _skin_color("banner_border", "#CD7F32")
     outer_panel = Panel(

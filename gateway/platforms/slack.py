@@ -62,7 +62,7 @@ class SlackAdapter(BasePlatformAdapter):
       - DMs and channel messages (mention-gated in channels)
       - Thread support
       - File/image/audio attachments
-      - Slash commands (/hermes)
+      - Slash commands (/mavis)
       - Typing indicators (not natively supported by Slack bots)
     """
 
@@ -182,17 +182,17 @@ class SlackAdapter(BasePlatformAdapter):
                 pass
 
             # Register slash command handler
-            @self._app.command("/hermes")
-            async def handle_hermes_command(ack, command):
+            @self._app.command("/mavis")
+            async def handle_mavis_command(ack, command):
                 await ack()
                 await self._handle_slash_command(command)
 
             # Register Block Kit action handlers for approval buttons
             for _action_id in (
-                "hermes_approve_once",
-                "hermes_approve_session",
-                "hermes_approve_always",
-                "hermes_deny",
+                "mavis_approve_once",
+                "mavis_approve_session",
+                "mavis_approve_always",
+                "mavis_deny",
             ):
                 self._app.action(_action_id)(self._handle_approval_action)
 
@@ -1019,26 +1019,26 @@ class SlackAdapter(BasePlatformAdapter):
                             "type": "button",
                             "text": {"type": "plain_text", "text": "Allow Once"},
                             "style": "primary",
-                            "action_id": "hermes_approve_once",
+                            "action_id": "mavis_approve_once",
                             "value": session_key,
                         },
                         {
                             "type": "button",
                             "text": {"type": "plain_text", "text": "Allow Session"},
-                            "action_id": "hermes_approve_session",
+                            "action_id": "mavis_approve_session",
                             "value": session_key,
                         },
                         {
                             "type": "button",
                             "text": {"type": "plain_text", "text": "Always Allow"},
-                            "action_id": "hermes_approve_always",
+                            "action_id": "mavis_approve_always",
                             "value": session_key,
                         },
                         {
                             "type": "button",
                             "text": {"type": "plain_text", "text": "Deny"},
                             "style": "danger",
-                            "action_id": "hermes_deny",
+                            "action_id": "mavis_deny",
                             "value": session_key,
                         },
                     ],
@@ -1076,10 +1076,10 @@ class SlackAdapter(BasePlatformAdapter):
 
         # Map action_id to approval choice
         choice_map = {
-            "hermes_approve_once": "once",
-            "hermes_approve_session": "session",
-            "hermes_approve_always": "always",
-            "hermes_deny": "deny",
+            "mavis_approve_once": "once",
+            "mavis_approve_session": "session",
+            "mavis_approve_always": "always",
+            "mavis_deny": "deny",
         }
         choice = choice_map.get(action_id, "deny")
 
@@ -1209,7 +1209,7 @@ class SlackAdapter(BasePlatformAdapter):
             return ""
 
     async def _handle_slash_command(self, command: dict) -> None:
-        """Handle /hermes slash command."""
+        """Handle /mavis slash command."""
         text = command.get("text", "").strip()
         user_id = command.get("user_id", "")
         channel_id = command.get("channel_id", "")

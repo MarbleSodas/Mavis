@@ -269,6 +269,28 @@ class TestResolveProvider:
         with pytest.raises(AuthError, match="No inference provider configured"):
             resolve_provider("auto")
 
+    def test_no_provider_error_uses_mavis_command_hints(self, monkeypatch):
+        monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("GLM_API_KEY", raising=False)
+        monkeypatch.delenv("ZAI_API_KEY", raising=False)
+        monkeypatch.delenv("Z_AI_API_KEY", raising=False)
+        monkeypatch.delenv("KIMI_API_KEY", raising=False)
+        monkeypatch.delenv("MINIMAX_API_KEY", raising=False)
+        monkeypatch.delenv("MINIMAX_CN_API_KEY", raising=False)
+        monkeypatch.delenv("AI_GATEWAY_API_KEY", raising=False)
+        monkeypatch.delenv("KILOCODE_API_KEY", raising=False)
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+        monkeypatch.delenv("MAVIS_HOME", raising=False)
+        monkeypatch.delenv("HERMES_HOME", raising=False)
+
+        with pytest.raises(AuthError) as excinfo:
+            resolve_provider("auto")
+
+        message = str(excinfo.value)
+        assert "mavis model" in message
+        assert "~/.mavis/.env" in message
+
 
 # =============================================================================
 # API Key Provider Status tests
@@ -632,6 +654,7 @@ class TestHasAnyProviderConfigured:
         hermes_home.mkdir()
         monkeypatch.setattr(config_module, "get_env_path", lambda: hermes_home / ".env")
         monkeypatch.setattr(config_module, "get_hermes_home", lambda: hermes_home)
+        monkeypatch.setattr("hermes_cli.auth.get_auth_status", lambda provider_id: {"logged_in": False})
         # Clear all provider env vars so earlier checks don't short-circuit
         for var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
                      "ANTHROPIC_TOKEN", "OPENAI_BASE_URL"):
@@ -660,7 +683,7 @@ class TestHasAnyProviderConfigured:
         }))
         monkeypatch.setattr(config_module, "get_env_path", lambda: hermes_home / ".env")
         monkeypatch.setattr(config_module, "get_hermes_home", lambda: hermes_home)
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("MAVIS_HOME", str(hermes_home))
         # Clear all provider env vars
         for var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
                      "ANTHROPIC_TOKEN", "OPENAI_BASE_URL"):
@@ -680,7 +703,7 @@ class TestHasAnyProviderConfigured:
         }))
         monkeypatch.setattr(config_module, "get_env_path", lambda: hermes_home / ".env")
         monkeypatch.setattr(config_module, "get_hermes_home", lambda: hermes_home)
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("MAVIS_HOME", str(hermes_home))
         for var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
                      "ANTHROPIC_TOKEN", "OPENAI_BASE_URL"):
             monkeypatch.delenv(var, raising=False)
@@ -699,7 +722,7 @@ class TestHasAnyProviderConfigured:
         }))
         monkeypatch.setattr(config_module, "get_env_path", lambda: hermes_home / ".env")
         monkeypatch.setattr(config_module, "get_hermes_home", lambda: hermes_home)
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("MAVIS_HOME", str(hermes_home))
         for var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
                      "ANTHROPIC_TOKEN", "OPENAI_BASE_URL"):
             monkeypatch.delenv(var, raising=False)
@@ -718,7 +741,8 @@ class TestHasAnyProviderConfigured:
         }))
         monkeypatch.setattr(config_module, "get_env_path", lambda: hermes_home / ".env")
         monkeypatch.setattr(config_module, "get_hermes_home", lambda: hermes_home)
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setattr("hermes_cli.auth.get_auth_status", lambda provider_id: {"logged_in": False})
+        monkeypatch.setenv("MAVIS_HOME", str(hermes_home))
         for var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
                      "ANTHROPIC_TOKEN", "OPENAI_BASE_URL"):
             monkeypatch.delenv(var, raising=False)
@@ -736,7 +760,7 @@ class TestHasAnyProviderConfigured:
         config_file.write_text(yaml.dump({"model": {"default": "my-local-model"}}))
         monkeypatch.setattr(config_module, "get_env_path", lambda: hermes_home / ".env")
         monkeypatch.setattr(config_module, "get_hermes_home", lambda: hermes_home)
-        monkeypatch.setenv("HERMES_HOME", str(hermes_home))
+        monkeypatch.setenv("MAVIS_HOME", str(hermes_home))
         # Clear all provider env vars
         for var in ("OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
                      "ANTHROPIC_TOKEN", "OPENAI_BASE_URL"):

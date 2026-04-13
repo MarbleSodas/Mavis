@@ -1,4 +1,4 @@
-"""Voice Mode -- Push-to-talk audio recording and playback for the CLI.
+"""Voice Mode -- local microphone recording, wake-phrase detection, and playback for the CLI.
 
 Provides audio capture via sounddevice, WAV encoding via stdlib wave,
 STT dispatch via tools.transcription_tools, and TTS playback via
@@ -19,6 +19,7 @@ import tempfile
 import threading
 import time
 import wave
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,34 @@ SILENCE_DURATION_SECONDS = 3.0  # Seconds of continuous silence before auto-stop
 
 # Temp directory for voice recordings
 _TEMP_DIR = os.path.join(tempfile.gettempdir(), "hermes_voice")
+
+
+def _normalize_wake_text(text: str) -> str:
+    """Normalize spoken wake text for a forgiving phrase comparison."""
+    cleaned = re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())
+    return " ".join(cleaned.split())
+
+
+def extract_wake_command(transcript: str, wake_phrase: str) -> Optional[str]:
+    """Return the user command following the wake phrase, or None if absent."""
+    source_text = (transcript or "").strip()
+    normalized_transcript = _normalize_wake_text(source_text)
+    normalized_wake = _normalize_wake_text(wake_phrase)
+    if not source_text or not normalized_transcript or not normalized_wake:
+        return None
+    wake_words = [re.escape(word) for word in normalized_wake.split()]
+    if not wake_words:
+        return None
+    pattern = re.compile(
+        r"^\s*" + r"[\W_]+".join(wake_words) + r"[\W_]*(?P<command>.*)$",
+        flags=re.IGNORECASE,
+    )
+    match = pattern.match(source_text)
+    if match:
+        return match.group("command").strip()
+    if normalized_transcript == normalized_wake:
+        return ""
+    return None
 
 
 # ============================================================================
@@ -728,10 +757,17 @@ def check_voice_requirements() -> Dict[str, Any]:
     """
     # Determine STT provider availability
     from tools.transcription_tools import _get_provider, _load_stt_config, is_stt_enabled
+    from tools.tts_tool import check_tts_requirements, get_piper_status, _load_tts_config
+
     stt_config = _load_stt_config()
     stt_enabled = is_stt_enabled(stt_config)
     stt_provider = _get_provider(stt_config)
-    stt_available = stt_enabled and stt_provider != "none"
+    stt_available = stt_enabled and stt_provider in {"local", "local_command"}
+
+    tts_config = _load_tts_config()
+    tts_provider = (tts_config.get("provider") or "piper").lower().strip()
+    tts_available = check_tts_requirements(provider=tts_provider, local_only=True, tts_config=tts_config)
+    piper_status = get_piper_status(tts_config)
 
     missing: List[str] = []
     has_audio = _audio_available()
@@ -742,7 +778,7 @@ def check_voice_requirements() -> Dict[str, Any]:
     # Environment detection
     env_check = detect_audio_environment()
 
-    available = has_audio and stt_available and env_check["available"]
+    available = has_audio and stt_available and tts_available and env_check["available"]
     details_parts = []
 
     if has_audio:
@@ -754,14 +790,30 @@ def check_voice_requirements() -> Dict[str, Any]:
         details_parts.append("STT provider: DISABLED in config (stt.enabled: false)")
     elif stt_provider == "local":
         details_parts.append("STT provider: OK (local faster-whisper)")
-    elif stt_provider == "groq":
-        details_parts.append("STT provider: OK (Groq)")
-    elif stt_provider == "openai":
-        details_parts.append("STT provider: OK (OpenAI)")
+    elif stt_provider == "local_command":
+        details_parts.append("STT provider: OK (local whisper command)")
     else:
         details_parts.append(
-            "STT provider: MISSING (pip install faster-whisper, "
-            "or set GROQ_API_KEY / VOICE_TOOLS_OPENAI_KEY)"
+            "STT provider: MISSING (voice mode requires local faster-whisper "
+            "or a local whisper command)"
+        )
+
+    if tts_provider == "piper" and piper_status["available"]:
+        details_parts.append(f"TTS provider: OK (Piper: {Path(piper_status['model_path']).name})")
+    elif tts_provider == "piper":
+        binary_hint = "found" if piper_status["binary"] else "missing"
+        details_parts.append(
+            "TTS provider: MISSING (Piper runtime/voice assets not ready; "
+            f"binary {binary_hint})"
+        )
+        if not piper_status["binary"]:
+            missing.append("piper")
+    elif tts_provider == "neutts" and tts_available:
+        details_parts.append("TTS provider: OK (NeuTTS)")
+    else:
+        details_parts.append(
+            "TTS provider: MISSING (voice mode requires a local TTS provider; "
+            "set tts.provider to 'piper' or another local backend)"
         )
 
     for warning in env_check["warnings"]:
@@ -773,6 +825,7 @@ def check_voice_requirements() -> Dict[str, Any]:
         "available": available,
         "audio_available": has_audio,
         "stt_available": stt_available,
+        "tts_available": tts_available,
         "missing_packages": missing,
         "details": "\n".join(details_parts),
         "environment": env_check,

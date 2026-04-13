@@ -193,7 +193,17 @@ class TestCheckVoiceRequirements:
         monkeypatch.setattr("tools.voice_mode._audio_available", lambda: True)
         monkeypatch.setattr("tools.voice_mode.detect_audio_environment",
                             lambda: {"available": True, "warnings": []})
-        monkeypatch.setattr("tools.transcription_tools._get_provider", lambda cfg: "openai")
+        monkeypatch.setattr("tools.transcription_tools._get_provider", lambda cfg: "local")
+        monkeypatch.setattr("tools.tts_tool.check_tts_requirements", lambda *a, **kw: True)
+        monkeypatch.setattr(
+            "tools.tts_tool.get_piper_status",
+            lambda *a, **kw: {
+                "binary": "/usr/local/bin/piper",
+                "model_path": "/tmp/en_US-lessac-medium.onnx",
+                "config_path": "/tmp/en_US-lessac-medium.onnx.json",
+                "available": True,
+            },
+        )
 
         from tools.voice_mode import check_voice_requirements
 
@@ -201,13 +211,24 @@ class TestCheckVoiceRequirements:
         assert result["available"] is True
         assert result["audio_available"] is True
         assert result["stt_available"] is True
+        assert result["tts_available"] is True
         assert result["missing_packages"] == []
 
     def test_missing_audio_packages(self, monkeypatch):
         monkeypatch.setattr("tools.voice_mode._audio_available", lambda: False)
         monkeypatch.setattr("tools.voice_mode.detect_audio_environment",
                             lambda: {"available": False, "warnings": ["Audio libraries not installed"]})
-        monkeypatch.setenv("VOICE_TOOLS_OPENAI_KEY", "sk-test-key")
+        monkeypatch.setattr("tools.transcription_tools._get_provider", lambda cfg: "local")
+        monkeypatch.setattr("tools.tts_tool.check_tts_requirements", lambda *a, **kw: True)
+        monkeypatch.setattr(
+            "tools.tts_tool.get_piper_status",
+            lambda *a, **kw: {
+                "binary": "/usr/local/bin/piper",
+                "model_path": "/tmp/en_US-lessac-medium.onnx",
+                "config_path": "/tmp/en_US-lessac-medium.onnx.json",
+                "available": True,
+            },
+        )
 
         from tools.voice_mode import check_voice_requirements
 
@@ -222,6 +243,16 @@ class TestCheckVoiceRequirements:
         monkeypatch.setattr("tools.voice_mode.detect_audio_environment",
                             lambda: {"available": True, "warnings": []})
         monkeypatch.setattr("tools.transcription_tools._get_provider", lambda cfg: "none")
+        monkeypatch.setattr("tools.tts_tool.check_tts_requirements", lambda *a, **kw: True)
+        monkeypatch.setattr(
+            "tools.tts_tool.get_piper_status",
+            lambda *a, **kw: {
+                "binary": "/usr/local/bin/piper",
+                "model_path": "/tmp/en_US-lessac-medium.onnx",
+                "config_path": "/tmp/en_US-lessac-medium.onnx.json",
+                "available": True,
+            },
+        )
 
         from tools.voice_mode import check_voice_requirements
 
@@ -229,6 +260,46 @@ class TestCheckVoiceRequirements:
         assert result["available"] is False
         assert result["stt_available"] is False
         assert "STT provider: MISSING" in result["details"]
+
+    def test_missing_local_tts_provider(self, monkeypatch):
+        monkeypatch.setattr("tools.voice_mode._audio_available", lambda: True)
+        monkeypatch.setattr("tools.voice_mode.detect_audio_environment",
+                            lambda: {"available": True, "warnings": []})
+        monkeypatch.setattr("tools.transcription_tools._get_provider", lambda cfg: "local")
+        monkeypatch.setattr("tools.tts_tool.check_tts_requirements", lambda *a, **kw: False)
+        monkeypatch.setattr(
+            "tools.tts_tool.get_piper_status",
+            lambda *a, **kw: {
+                "binary": "",
+                "model_path": "",
+                "config_path": "",
+                "available": False,
+            },
+        )
+
+        from tools.voice_mode import check_voice_requirements
+
+        result = check_voice_requirements()
+        assert result["available"] is False
+        assert result["tts_available"] is False
+        assert "TTS provider: MISSING" in result["details"]
+
+
+class TestWakePhraseExtraction:
+    def test_extracts_command_after_wake_phrase(self):
+        from tools.voice_mode import extract_wake_command
+
+        assert extract_wake_command("Hey Mavis, what time is it?", "hey mavis") == "what time is it?"
+
+    def test_returns_empty_string_for_phrase_only(self):
+        from tools.voice_mode import extract_wake_command
+
+        assert extract_wake_command("Hey Mavis", "hey mavis") == ""
+
+    def test_returns_none_when_phrase_missing(self):
+        from tools.voice_mode import extract_wake_command
+
+        assert extract_wake_command("hello there", "hey mavis") is None
 
 
 # ============================================================================

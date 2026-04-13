@@ -5,7 +5,6 @@ without risk of circular imports.
 """
 
 import os
-import shutil
 from pathlib import Path
 
 APP_NAME = "Mavis"
@@ -16,7 +15,6 @@ OPTIONAL_SKILLS_ENV_VAR = "MAVIS_OPTIONAL_SKILLS"
 LEGACY_OPTIONAL_SKILLS_ENV_VAR = "HERMES_OPTIONAL_SKILLS"
 DEFAULT_HOME_DIRNAME = ".mavis"
 LEGACY_HOME_DIRNAME = ".hermes"
-HOME_IMPORT_SENTINEL = ".imported_from_hermes"
 
 
 def _default_home() -> Path:
@@ -27,26 +25,9 @@ def _legacy_home() -> Path:
     return Path.home() / LEGACY_HOME_DIRNAME
 
 
-def _sync_home_env(home: Path) -> None:
-    os.environ[HOME_ENV_VAR] = str(home)
-    os.environ.setdefault(LEGACY_HOME_ENV_VAR, str(home))
-
-
-def _import_legacy_home(default_home: Path) -> None:
-    legacy_home = _legacy_home()
-    if default_home.exists() or not legacy_home.exists():
-        return
-
-    try:
-        shutil.copytree(legacy_home, default_home, dirs_exist_ok=True)
-        (default_home / HOME_IMPORT_SENTINEL).write_text(
-            f"Imported from {legacy_home}\n",
-            encoding="utf-8",
-        )
-    except OSError:
-        # Migration is best-effort; the caller still gets ~/.mavis as the
-        # canonical path and can initialize a fresh home there if needed.
-        pass
+def get_legacy_hermes_home() -> Path:
+    """Return the legacy Hermes home path used by explicit migration flows."""
+    return _legacy_home()
 
 
 def get_hermes_home() -> Path:
@@ -54,36 +35,15 @@ def get_hermes_home() -> Path:
 
     Resolution order:
     1. ``MAVIS_HOME``
-    2. ``HERMES_HOME`` (legacy compatibility)
-    3. ``~/.mavis`` default, with a one-time import from ``~/.hermes`` when
-       the new directory does not exist yet.
+    2. ``~/.mavis``
 
-    The resolved path is mirrored back into both env vars so older modules
-    that still read ``HERMES_HOME`` continue to behave correctly.
+    Legacy Hermes paths are intentionally ignored here.  Existing Hermes state
+    is only imported through the explicit ``mavis migrate-hermes`` command.
     """
     explicit_mavis_home = os.getenv(HOME_ENV_VAR, "").strip()
-    explicit_legacy_home = os.getenv(LEGACY_HOME_ENV_VAR, "").strip()
-    default_home = _default_home()
-
-    if explicit_mavis_home and explicit_legacy_home:
-        mavis_home = Path(explicit_mavis_home).expanduser()
-        legacy_home = Path(explicit_legacy_home).expanduser()
-        # If MAVIS_HOME only contains the auto-default while the legacy env var
-        # was explicitly pointed elsewhere, prefer the explicit legacy override.
-        home = legacy_home if mavis_home == default_home and legacy_home != default_home else mavis_home
-        _sync_home_env(home)
-        return home
-
-    explicit_home = explicit_mavis_home or explicit_legacy_home
-    if explicit_home:
-        home = Path(explicit_home).expanduser()
-        _sync_home_env(home)
-        return home
-
-    home = default_home
-    _import_legacy_home(home)
-    _sync_home_env(home)
-    return home
+    if explicit_mavis_home:
+        return Path(explicit_mavis_home).expanduser()
+    return _default_home()
 
 
 def get_optional_skills_dir(default: Path | None = None) -> Path:
@@ -92,10 +52,7 @@ def get_optional_skills_dir(default: Path | None = None) -> Path:
     Packaged installs may ship ``optional-skills`` outside the Python package
     tree and expose it via ``MAVIS_OPTIONAL_SKILLS``.
     """
-    override = (
-        os.getenv(OPTIONAL_SKILLS_ENV_VAR, "").strip()
-        or os.getenv(LEGACY_OPTIONAL_SKILLS_ENV_VAR, "").strip()
-    )
+    override = os.getenv(OPTIONAL_SKILLS_ENV_VAR, "").strip()
     if override:
         return Path(override)
     if default is not None:
@@ -104,15 +61,17 @@ def get_optional_skills_dir(default: Path | None = None) -> Path:
 
 
 def get_hermes_dir(new_subpath: str, old_name: str) -> Path:
-    """Resolve a Hermes subdirectory with backward compatibility.
+    """Resolve a Mavis state subdirectory with backward compatibility.
 
     New installs get the consolidated layout (e.g. ``cache/images``).
     Existing installs that already have the old path (e.g. ``image_cache``)
     keep using it — no migration required.
 
     Args:
-        new_subpath: Preferred path relative to HERMES_HOME (e.g. ``"cache/images"``).
-        old_name: Legacy path relative to HERMES_HOME (e.g. ``"image_cache"``).
+        new_subpath: Preferred path relative to the Mavis home directory
+            (e.g. ``"cache/images"``).
+        old_name: Legacy path relative to the Mavis home directory
+            (e.g. ``"image_cache"``).
 
     Returns:
         Absolute ``Path`` — old location if it exists on disk, otherwise the new one.

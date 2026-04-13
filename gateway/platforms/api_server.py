@@ -2,17 +2,17 @@
 OpenAI-compatible API server platform adapter.
 
 Exposes an HTTP server with endpoints:
-- POST /v1/chat/completions        — OpenAI Chat Completions format (stateless; opt-in session continuity via X-Hermes-Session-Id header)
+- POST /v1/chat/completions        — OpenAI Chat Completions format (stateless; opt-in session continuity via X-Mavis-Session-Id header)
 - POST /v1/responses               — OpenAI Responses API format (stateful via previous_response_id)
 - GET  /v1/responses/{response_id} — Retrieve a stored response
 - DELETE /v1/responses/{response_id} — Delete a stored response
-- GET  /v1/models                  — lists hermes-agent as an available model
+- GET  /v1/models                  — lists mavis-agent as an available model
 - POST /v1/runs                    — start a run, returns run_id immediately (202)
 - GET  /v1/runs/{run_id}/events    — SSE stream of structured lifecycle events
 - GET  /health                     — health check
 
 Any OpenAI-compatible frontend (Open WebUI, LobeChat, LibreChat,
-AnythingLLM, NextChat, ChatBox, etc.) can connect to hermes-agent
+AnythingLLM, NextChat, ChatBox, etc.) can connect to mavis-agent
 through this adapter by pointing at http://localhost:8642/v1.
 
 Requires:
@@ -287,7 +287,7 @@ class APIServerAdapter(BasePlatformAdapter):
     OpenAI-compatible HTTP API server adapter.
 
     Runs an aiohttp web server that accepts OpenAI-format requests
-    and routes them through hermes-agent's AIAgent.
+    and routes them through mavis-agent's AIAgent.
     """
 
     def __init__(self, config: PlatformConfig):
@@ -386,7 +386,7 @@ class APIServerAdapter(BasePlatformAdapter):
     def _ensure_session_db(self):
         """Lazily initialise and return the shared SessionDB instance.
 
-        Sessions are persisted to ``state.db`` so that ``hermes sessions list``
+        Sessions are persisted to ``state.db`` so that ``mavis sessions list``
         shows API-server conversations alongside CLI and gateway ones.
         """
         if self._session_db is None:
@@ -414,7 +414,7 @@ class APIServerAdapter(BasePlatformAdapter):
         Uses _resolve_runtime_agent_kwargs() to pick up model, api_key,
         base_url, etc. from config.yaml / env vars.  Toolsets are resolved
         from config.yaml platform_toolsets.api_server (same as all other
-        gateway platforms), falling back to the hermes-api-server default.
+        gateway platforms), falling back to the mavis-api-server default.
         """
         from run_agent import AIAgent
         from gateway.run import _resolve_runtime_agent_kwargs, _resolve_gateway_model, _load_gateway_config
@@ -456,24 +456,24 @@ class APIServerAdapter(BasePlatformAdapter):
 
     async def _handle_health(self, request: "web.Request") -> "web.Response":
         """GET /health — simple health check."""
-        return web.json_response({"status": "ok", "platform": "hermes-agent"})
+        return web.json_response({"status": "ok", "platform": "mavis-agent"})
 
     async def _handle_models(self, request: "web.Request") -> "web.Response":
-        """GET /v1/models — return hermes-agent as an available model."""
+        """GET /v1/models — return mavis-agent as an available model."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
 
         return web.json_response({
             "object": "list",
             "data": [
                 {
-                    "id": "hermes-agent",
+                    "id": "mavis-agent",
                     "object": "model",
                     "created": int(time.time()),
-                    "owned_by": "hermes",
+                    "owned_by": "mavis",
                     "permission": [],
-                    "root": "hermes-agent",
+                    "root": "mavis-agent",
                     "parent": None,
                 }
             ],
@@ -482,7 +482,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_chat_completions(self, request: "web.Request") -> "web.Response":
         """POST /v1/chat/completions — OpenAI Chat Completions format."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
 
         # Parse request body
@@ -529,9 +529,9 @@ class APIServerAdapter(BasePlatformAdapter):
                 status=400,
             )
 
-        # Allow caller to continue an existing session by passing X-Hermes-Session-Id.
+        # Allow caller to continue an existing session by passing X-Mavis-Session-Id.
         # When provided, history is loaded from state.db instead of from the request body.
-        provided_session_id = request.headers.get("X-Hermes-Session-Id", "").strip()
+        provided_session_id = request.headers.get("X-Mavis-Session-Id", "").strip()
         if provided_session_id:
             session_id = provided_session_id
             try:
@@ -546,7 +546,7 @@ class APIServerAdapter(BasePlatformAdapter):
             # history already set from request body above
 
         completion_id = f"chatcmpl-{uuid.uuid4().hex[:29]}"
-        model_name = body.get("model", "hermes-agent")
+        model_name = body.get("model", "mavis-agent")
         created = int(time.time())
 
         if stream:
@@ -649,7 +649,7 @@ class APIServerAdapter(BasePlatformAdapter):
             },
         }
 
-        return web.json_response(response_data, headers={"X-Hermes-Session-Id": session_id})
+        return web.json_response(response_data, headers={"X-Mavis-Session-Id": session_id})
 
     async def _write_sse_chat_completion(
         self, request: "web.Request", completion_id: str, model: str,
@@ -671,7 +671,7 @@ class APIServerAdapter(BasePlatformAdapter):
         if cors:
             sse_headers.update(cors)
         if session_id:
-            sse_headers["X-Hermes-Session-Id"] = session_id
+            sse_headers["X-Mavis-Session-Id"] = session_id
         response = web.StreamResponse(status=200, headers=sse_headers)
         await response.prepare(request)
 
@@ -762,7 +762,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_responses(self, request: "web.Request") -> "web.Response":
         """POST /v1/responses — OpenAI Responses API format."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
 
         # Parse request body
@@ -923,7 +923,7 @@ class APIServerAdapter(BasePlatformAdapter):
             "object": "response",
             "status": "completed",
             "created_at": created_at,
-            "model": body.get("model", "hermes-agent"),
+            "model": body.get("model", "mavis-agent"),
             "output": output_items,
             "usage": {
                 "input_tokens": usage.get("input_tokens", 0),
@@ -953,7 +953,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_get_response(self, request: "web.Request") -> "web.Response":
         """GET /v1/responses/{response_id} — retrieve a stored response."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
 
         response_id = request.match_info["response_id"]
@@ -966,7 +966,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_delete_response(self, request: "web.Request") -> "web.Response":
         """DELETE /v1/responses/{response_id} — delete a stored response."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
 
         response_id = request.match_info["response_id"]
@@ -1039,7 +1039,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_list_jobs(self, request: "web.Request") -> "web.Response":
         """GET /api/jobs — list all cron jobs."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
         cron_err = self._check_jobs_available()
         if cron_err:
@@ -1054,7 +1054,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_create_job(self, request: "web.Request") -> "web.Response":
         """POST /api/jobs — create a new cron job."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
         cron_err = self._check_jobs_available()
         if cron_err:
@@ -1102,7 +1102,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_get_job(self, request: "web.Request") -> "web.Response":
         """GET /api/jobs/{job_id} — get a single cron job."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
         cron_err = self._check_jobs_available()
         if cron_err:
@@ -1121,7 +1121,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_update_job(self, request: "web.Request") -> "web.Response":
         """PATCH /api/jobs/{job_id} — update a cron job."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
         cron_err = self._check_jobs_available()
         if cron_err:
@@ -1154,7 +1154,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_delete_job(self, request: "web.Request") -> "web.Response":
         """DELETE /api/jobs/{job_id} — delete a cron job."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
         cron_err = self._check_jobs_available()
         if cron_err:
@@ -1173,7 +1173,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_pause_job(self, request: "web.Request") -> "web.Response":
         """POST /api/jobs/{job_id}/pause — pause a cron job."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
         cron_err = self._check_jobs_available()
         if cron_err:
@@ -1192,7 +1192,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_resume_job(self, request: "web.Request") -> "web.Response":
         """POST /api/jobs/{job_id}/resume — resume a paused cron job."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
         cron_err = self._check_jobs_available()
         if cron_err:
@@ -1211,7 +1211,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_run_job(self, request: "web.Request") -> "web.Response":
         """POST /api/jobs/{job_id}/run — trigger immediate execution."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
         cron_err = self._check_jobs_available()
         if cron_err:
@@ -1379,7 +1379,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_runs(self, request: "web.Request") -> "web.Response":
         """POST /v1/runs — start an agent run, return run_id immediately."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
 
         # Enforce concurrency limit
@@ -1532,7 +1532,7 @@ class APIServerAdapter(BasePlatformAdapter):
     async def _handle_run_events(self, request: "web.Request") -> "web.StreamResponse":
         """GET /v1/runs/{run_id}/events — SSE stream of structured agent lifecycle events."""
         auth_err = self._check_auth(request)
-        if auth_err:
+        if auth_err is not None:
             return auth_err
 
         run_id = request.match_info["run_id"]

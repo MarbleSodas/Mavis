@@ -16,7 +16,7 @@ param(
     [switch]$NoVenv,
     [switch]$SkipSetup,
     [string]$Branch = "main",
-    [string]$HermesHome = "$env:LOCALAPPDATA\mavis",
+    [string]$MavisHome = "$env:LOCALAPPDATA\mavis",
     [string]$InstallDir = "$env:LOCALAPPDATA\mavis\mavis-agent"
 )
 
@@ -217,11 +217,11 @@ function Test-Node {
     }
 
     # Check our own managed install from a previous run
-    $managedNode = "$HermesHome\node\node.exe"
+    $managedNode = "$MavisHome\node\node.exe"
     if (Test-Path $managedNode) {
         $version = & $managedNode --version
-        $env:Path = "$HermesHome\node;$env:Path"
-        Write-Success "Node.js $version found (Hermes-managed)"
+        $env:Path = "$MavisHome\node;$env:Path"
+        Write-Success "Node.js $version found (Mavis-managed)"
         $script:HasNode = $true
         return $true
     }
@@ -255,7 +255,7 @@ function Test-Node {
         if ($zipName) {
             $downloadUrl = "${indexUrl}${zipName}"
             $tmpZip = "$env:TEMP\$zipName"
-            $tmpDir = "$env:TEMP\hermes-node-extract"
+            $tmpDir = "$env:TEMP\mavis-node-extract"
 
             Invoke-WebRequest -Uri $downloadUrl -OutFile $tmpZip -UseBasicParsing
             if (Test-Path $tmpDir) { Remove-Item -Recurse -Force $tmpDir }
@@ -263,11 +263,11 @@ function Test-Node {
 
             $extractedDir = Get-ChildItem $tmpDir -Directory | Select-Object -First 1
             if ($extractedDir) {
-                if (Test-Path "$HermesHome\node") { Remove-Item -Recurse -Force "$HermesHome\node" }
-                Move-Item $extractedDir.FullName "$HermesHome\node"
-                $env:Path = "$HermesHome\node;$env:Path"
+                if (Test-Path "$MavisHome\node") { Remove-Item -Recurse -Force "$MavisHome\node" }
+                Move-Item $extractedDir.FullName "$MavisHome\node"
+                $env:Path = "$MavisHome\node;$env:Path"
 
-                $version = & "$HermesHome\node\node.exe" --version
+                $version = & "$MavisHome\node\node.exe" --version
                 Write-Success "Node.js $version installed to ~/.mavis/node/"
                 $script:HasNode = $true
 
@@ -581,43 +581,36 @@ function Set-PathVariable {
     Write-Info "Setting up mavis command..."
     
     if ($NoVenv) {
-        $hermesBin = "$InstallDir"
+        $mavisBin = "$InstallDir"
     } else {
-        $hermesBin = "$InstallDir\venv\Scripts"
+        $mavisBin = "$InstallDir\venv\Scripts"
     }
     
-    # Add the venv Scripts dir to user PATH so hermes is globally available
-    # On Windows, the hermes.exe in venv\Scripts\ has the venv Python baked in
+    # Add the venv Scripts dir to user PATH so mavis is globally available
+    # On Windows, the mavis.exe in venv\Scripts\ has the venv Python baked in
     $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
     
-    if ($currentPath -notlike "*$hermesBin*") {
+    if ($currentPath -notlike "*$mavisBin*") {
         [Environment]::SetEnvironmentVariable(
             "Path",
-            "$hermesBin;$currentPath",
+            "$mavisBin;$currentPath",
             "User"
         )
-        Write-Success "Added to user PATH: $hermesBin"
+        Write-Success "Added to user PATH: $mavisBin"
     } else {
         Write-Info "PATH already configured"
     }
     
-    # Set MAVIS_HOME and legacy HERMES_HOME so the Python code finds config/data
-    # in the right place.
+    # Set MAVIS_HOME so the Python code finds config/data in the right place.
     $currentMavisHome = [Environment]::GetEnvironmentVariable("MAVIS_HOME", "User")
-    $currentHermesHome = [Environment]::GetEnvironmentVariable("HERMES_HOME", "User")
-    if (-not $currentMavisHome -or $currentMavisHome -ne $HermesHome) {
-        [Environment]::SetEnvironmentVariable("MAVIS_HOME", $HermesHome, "User")
-        Write-Success "Set MAVIS_HOME=$HermesHome"
+    if (-not $currentMavisHome -or $currentMavisHome -ne $MavisHome) {
+        [Environment]::SetEnvironmentVariable("MAVIS_HOME", $MavisHome, "User")
+        Write-Success "Set MAVIS_HOME=$MavisHome"
     }
-    if (-not $currentHermesHome -or $currentHermesHome -ne $HermesHome) {
-        [Environment]::SetEnvironmentVariable("HERMES_HOME", $HermesHome, "User")
-        Write-Success "Set HERMES_HOME=$HermesHome"
-    }
-    $env:MAVIS_HOME = $HermesHome
-    $env:HERMES_HOME = $HermesHome
+    $env:MAVIS_HOME = $MavisHome
     
     # Update current session
-    $env:Path = "$hermesBin;$env:Path"
+    $env:Path = "$mavisBin;$env:Path"
     
     Write-Success "mavis command ready"
 }
@@ -626,19 +619,19 @@ function Copy-ConfigTemplates {
     Write-Info "Setting up configuration files..."
     
     # Create ~/.mavis directory structure
-    New-Item -ItemType Directory -Force -Path "$HermesHome\cron" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$HermesHome\sessions" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$HermesHome\logs" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$HermesHome\pairing" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$HermesHome\hooks" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$HermesHome\image_cache" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$HermesHome\audio_cache" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$HermesHome\memories" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$HermesHome\skills" | Out-Null
-    New-Item -ItemType Directory -Force -Path "$HermesHome\whatsapp\session" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\cron" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\sessions" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\logs" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\pairing" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\hooks" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\image_cache" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\audio_cache" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\memories" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\skills" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$MavisHome\whatsapp\session" | Out-Null
     
     # Create .env
-    $envPath = "$HermesHome\.env"
+    $envPath = "$MavisHome\.env"
     if (-not (Test-Path $envPath)) {
         $examplePath = "$InstallDir\.env.example"
         if (Test-Path $examplePath) {
@@ -653,7 +646,7 @@ function Copy-ConfigTemplates {
     }
     
     # Create config.yaml
-    $configPath = "$HermesHome\config.yaml"
+    $configPath = "$MavisHome\config.yaml"
     if (-not (Test-Path $configPath)) {
         $examplePath = "$InstallDir\cli-config.yaml.example"
         if (Test-Path $examplePath) {
@@ -665,7 +658,7 @@ function Copy-ConfigTemplates {
     }
     
     # Create SOUL.md if it doesn't exist (global persona file)
-    $soulPath = "$HermesHome\SOUL.md"
+    $soulPath = "$MavisHome\SOUL.md"
     if (-not (Test-Path $soulPath)) {
         @"
 # Mavis Persona
@@ -673,7 +666,7 @@ function Copy-ConfigTemplates {
 <!-- 
 This file defines the agent's personality and tone.
 The agent will embody whatever you write here.
-Edit this to customize how Hermes communicates with you.
+Edit this to customize how Mavis communicates with you.
 
 Examples:
   - "You are a warm, playful assistant who uses kaomoji occasionally."
@@ -699,7 +692,7 @@ Delete the contents (or this file) to use the default personality.
         } catch {
             # Fallback: simple directory copy
             $bundledSkills = "$InstallDir\skills"
-            $userSkills = "$HermesHome\skills"
+            $userSkills = "$MavisHome\skills"
             if ((Test-Path $bundledSkills) -and -not (Get-ChildItem $userSkills -Exclude '.bundled_manifest' -ErrorAction SilentlyContinue)) {
                 Copy-Item -Path "$bundledSkills\*" -Destination $userSkills -Recurse -Force -ErrorAction SilentlyContinue
                 Write-Success "Skills copied to ~/.mavis/skills/"
@@ -766,7 +759,7 @@ function Invoke-SetupWizard {
 }
 
 function Start-GatewayIfConfigured {
-    $envPath = "$HermesHome\.env"
+    $envPath = "$MavisHome\.env"
     if (-not (Test-Path $envPath)) { return }
 
     $hasMessaging = $false
@@ -778,14 +771,14 @@ function Start-GatewayIfConfigured {
 
     if (-not $hasMessaging) { return }
 
-    $hermesCmd = "$InstallDir\venv\Scripts\hermes.exe"
-    if (-not (Test-Path $hermesCmd)) {
-        $hermesCmd = "hermes"
+    $mavisCmd = "$InstallDir\venv\Scripts\mavis.exe"
+    if (-not (Test-Path $mavisCmd)) {
+        $mavisCmd = "mavis"
     }
 
     # If WhatsApp is enabled but not yet paired, run foreground for QR scan
     $whatsappEnabled = $content | Where-Object { $_ -match "^WHATSAPP_ENABLED=true" }
-    $whatsappSession = "$HermesHome\whatsapp\session\creds.json"
+    $whatsappSession = "$MavisHome\whatsapp\session\creds.json"
     if ($whatsappEnabled -and -not (Test-Path $whatsappSession)) {
         Write-Host ""
         Write-Info "WhatsApp is enabled but not yet paired."
@@ -794,7 +787,7 @@ function Start-GatewayIfConfigured {
         $response = Read-Host "Pair WhatsApp now? [Y/n]"
         if ($response -eq "" -or $response -match "^[Yy]") {
             try {
-                & $hermesCmd whatsapp
+                & $mavisCmd whatsapp
             } catch {
                 # Expected after pairing completes
             }
@@ -810,10 +803,10 @@ function Start-GatewayIfConfigured {
     if ($response -eq "" -or $response -match "^[Yy]") {
         Write-Info "Starting gateway in background..."
         try {
-            $logFile = "$HermesHome\logs\gateway.log"
-            Start-Process -FilePath $hermesCmd -ArgumentList "gateway" `
+            $logFile = "$MavisHome\logs\gateway.log"
+            Start-Process -FilePath $mavisCmd -ArgumentList "gateway" `
                 -RedirectStandardOutput $logFile `
-                -RedirectStandardError "$HermesHome\logs\gateway-error.log" `
+                -RedirectStandardError "$MavisHome\logs\gateway-error.log" `
                 -WindowStyle Hidden
             Write-Success "Gateway started! Your bot is now online."
             Write-Info "Logs: $logFile"
@@ -837,20 +830,20 @@ function Write-Completion {
     Write-Host "📁 Your files:" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "   Config:    " -NoNewline -ForegroundColor Yellow
-    Write-Host "$HermesHome\config.yaml"
+    Write-Host "$MavisHome\config.yaml"
     Write-Host "   API Keys:  " -NoNewline -ForegroundColor Yellow
-    Write-Host "$HermesHome\.env"
+    Write-Host "$MavisHome\.env"
     Write-Host "   Data:      " -NoNewline -ForegroundColor Yellow
-    Write-Host "$HermesHome\cron\, sessions\, logs\"
+    Write-Host "$MavisHome\cron\, sessions\, logs\"
     Write-Host "   Code:      " -NoNewline -ForegroundColor Yellow
-    Write-Host "$HermesHome\mavis-agent\"
+    Write-Host "$MavisHome\mavis-agent\"
     Write-Host ""
     
     Write-Host "─────────────────────────────────────────────────────────" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "🚀 Commands:" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "   hermes              " -NoNewline -ForegroundColor Green
+    Write-Host "   mavis               " -NoNewline -ForegroundColor Green
     Write-Host "Start chatting"
     Write-Host "   mavis setup         " -NoNewline -ForegroundColor Green
     Write-Host "Configure API keys & settings"

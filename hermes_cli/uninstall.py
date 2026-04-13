@@ -3,7 +3,7 @@ Hermes Agent Uninstaller.
 
 Provides options for:
 - Full uninstall: Remove everything including configs and data
-- Keep data: Remove code but keep ~/.hermes/ (configs, sessions, logs)
+- Keep data: Remove code but keep ~/.mavis/ (configs, sessions, logs)
 """
 
 import shutil
@@ -127,7 +127,7 @@ def uninstall_gateway_service():
         from hermes_cli.gateway import get_service_name
         svc_name = get_service_name()
     except Exception:
-        svc_name = "hermes-gateway"
+        svc_name = "mavis-gateway"
 
     service_file = Path.home() / ".config" / "systemd" / "user" / f"{svc_name}.service"
     
@@ -171,8 +171,8 @@ def run_uninstall(args):
     Run the uninstall process.
     
     Options:
-    - Full uninstall: removes code + ~/.hermes/ (configs, data, logs)
-    - Keep data: removes code but keeps ~/.hermes/ for future reinstall
+    - Full uninstall: removes code + ~/.mavis/ (configs, data, logs)
+    - Keep data: removes code but keeps ~/.mavis/ for future reinstall
     """
     project_root = get_project_root()
     hermes_home = get_hermes_home()
@@ -274,7 +274,7 @@ def run_uninstall(args):
     # We need to be careful here
     try:
         if project_root.exists():
-            # If the install is inside ~/.hermes/, just remove the hermes-agent subdir
+            # If the install is inside ~/.mavis/, just remove the hermes-agent subdir
             if hermes_home in project_root.parents or project_root.parent == hermes_home:
                 shutil.rmtree(project_root)
                 log_success(f"Removed {project_root}")
@@ -286,7 +286,7 @@ def run_uninstall(args):
         log_warn(f"Could not fully remove {project_root}: {e}")
         log_info("You may need to manually remove it")
     
-    # 5. Optionally remove ~/.hermes/ data directory
+    # 5. Optionally remove ~/.mavis/ data directory
     if full_uninstall:
         log_info("Removing configuration and data...")
         try:

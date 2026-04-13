@@ -11,29 +11,29 @@ from tools.skills_hub import OptionalSkillSource
 
 
 def test_get_managed_system_homebrew(monkeypatch):
-    monkeypatch.setenv("HERMES_MANAGED", "homebrew")
+    monkeypatch.setenv("MAVIS_MANAGED", "homebrew")
 
     assert get_managed_system() == "Homebrew"
-    assert recommended_update_command() == "brew upgrade hermes-agent"
+    assert recommended_update_command() == "brew upgrade mavis-agent"
 
 
 def test_format_managed_message_homebrew(monkeypatch):
-    monkeypatch.setenv("HERMES_MANAGED", "homebrew")
+    monkeypatch.setenv("MAVIS_MANAGED", "homebrew")
 
-    message = format_managed_message("update Hermes Agent")
+    message = format_managed_message("update Mavis")
 
     assert "managed by Homebrew" in message
-    assert "brew upgrade hermes-agent" in message
+    assert "brew upgrade mavis-agent" in message
 
 
-def test_recommended_update_command_defaults_to_hermes_update(monkeypatch):
-    monkeypatch.delenv("HERMES_MANAGED", raising=False)
+def test_recommended_update_command_defaults_to_mavis_update(monkeypatch):
+    monkeypatch.delenv("MAVIS_MANAGED", raising=False)
 
-    assert recommended_update_command() == "hermes update"
+    assert recommended_update_command() == "mavis update"
 
 
 def test_cmd_update_blocks_managed_homebrew(monkeypatch, capsys):
-    monkeypatch.setenv("HERMES_MANAGED", "homebrew")
+    monkeypatch.setenv("MAVIS_MANAGED", "homebrew")
 
     with patch("hermes_cli.main.subprocess.run") as mock_run:
         cmd_update(SimpleNamespace())
@@ -41,13 +41,13 @@ def test_cmd_update_blocks_managed_homebrew(monkeypatch, capsys):
     assert not mock_run.called
     captured = capsys.readouterr()
     assert "managed by Homebrew" in captured.err
-    assert "brew upgrade hermes-agent" in captured.err
+    assert "brew upgrade mavis-agent" in captured.err
 
 
 def test_optional_skill_source_honors_env_override(monkeypatch, tmp_path):
     optional_dir = tmp_path / "optional-skills"
     optional_dir.mkdir()
-    monkeypatch.setenv("HERMES_OPTIONAL_SKILLS", str(optional_dir))
+    monkeypatch.setenv("MAVIS_OPTIONAL_SKILLS", str(optional_dir))
 
     source = OptionalSkillSource()
 

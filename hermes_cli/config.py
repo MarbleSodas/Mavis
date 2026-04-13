@@ -66,7 +66,7 @@ _MANAGED_SYSTEM_NAMES = {
 
 def get_managed_system() -> Optional[str]:
     """Return the package manager owning this install, if any."""
-    raw = os.getenv("HERMES_MANAGED", "").strip()
+    raw = os.getenv("MAVIS_MANAGED", "").strip()
     if raw:
         normalized = raw.lower()
         if normalized in _MANAGED_TRUE_VALUES:
@@ -80,10 +80,10 @@ def get_managed_system() -> Optional[str]:
 
 
 def is_managed() -> bool:
-    """Check if Hermes is running in package-manager-managed mode.
+    """Check if Mavis is running in package-manager-managed mode.
 
-    Two signals: the HERMES_MANAGED env var (set by the systemd service),
-    or a .managed marker file in HERMES_HOME (set by the NixOS activation
+    Two signals: the MAVIS_MANAGED env var (set by the systemd service),
+    or a .managed marker file in MAVIS_HOME (set by the NixOS activation
     script, so interactive shells also see it).
     """
     return get_managed_system() is not None
@@ -107,13 +107,13 @@ def recommended_update_command() -> str:
 def format_managed_message(action: str = "modify this Mavis installation") -> str:
     """Build a user-facing error for managed installs."""
     managed_system = get_managed_system() or "a package manager"
-    raw = os.getenv("HERMES_MANAGED", "").strip().lower()
+    raw = os.getenv("MAVIS_MANAGED", "").strip().lower()
 
     if managed_system == "NixOS":
         env_hint = "true" if raw in _MANAGED_TRUE_VALUES else raw or "true"
         return (
             f"Cannot {action}: this Mavis installation is managed by NixOS "
-            f"(HERMES_MANAGED={env_hint}).\n"
+            f"(MAVIS_MANAGED={env_hint}).\n"
             "Edit services.mavis-agent.settings in your configuration.nix and run:\n"
             "  sudo nixos-rebuild switch"
         )
@@ -122,7 +122,7 @@ def format_managed_message(action: str = "modify this Mavis installation") -> st
         env_hint = raw or "homebrew"
         return (
             f"Cannot {action}: this Mavis installation is managed by Homebrew "
-            f"(HERMES_MANAGED={env_hint}).\n"
+            f"(MAVIS_MANAGED={env_hint}).\n"
             "Use:\n"
             "  brew upgrade mavis-agent"
         )
@@ -199,7 +199,11 @@ def ensure_hermes_home():
 # =============================================================================
 
 DEFAULT_CONFIG = {
-    "model": "",
+    "model": {
+        "provider": "custom",
+        "base_url": "http://localhost:11434/v1",
+        "default": "gemma4",
+    },
     "providers": {},
     "fallback_providers": [],
     "credential_pool_strategies": {},
@@ -389,10 +393,18 @@ DEFAULT_CONFIG = {
     
     # Text-to-speech configuration
     "tts": {
-        "provider": "edge",  # "edge" (free) | "elevenlabs" (premium) | "openai" | "neutts" (local)
+        "provider": "piper",  # "piper" (local) | "edge" | "elevenlabs" | "openai" | "neutts"
         "edge": {
             "voice": "en-US-AriaNeural",
             # Popular: AriaNeural, JennyNeural, AndrewNeural, BrianNeural, SoniaNeural
+        },
+        "piper": {
+            "voice": "en_US-lessac-medium",
+            "model_path": "",
+            "config_path": "",
+            "speaker": "",
+            "length_scale": 1.0,
+            "noise_scale": 0.667,
         },
         "elevenlabs": {
             "voice_id": "pNInz6obpgDQGcFmaJgB",  # Adam
@@ -415,7 +427,7 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "provider": "local",  # "local" (free, faster-whisper) | "groq" | "openai" (Whisper API)
         "local": {
-            "model": "base",  # tiny, base, small, medium, large-v3
+            "model": "small",  # tiny, base, small, medium, large-v3
             "language": "",  # auto-detect by default; set to "en", "es", "fr", etc. to force
         },
         "openai": {
@@ -427,6 +439,12 @@ DEFAULT_CONFIG = {
         "record_key": "ctrl+b",
         "max_recording_seconds": 120,
         "auto_tts": True,
+        "auto_start": True,
+        "activation_mode": "hotword",   # hotword | ptt
+        "wake_phrase": "hey mavis",
+        "wakeword_backend": "transcription",
+        "wakeword_threshold": 0.45,
+        "pre_roll_ms": 500,
         "silence_threshold": 200,     # RMS below this = silence (0-32767)
         "silence_duration": 3.0,      # Seconds of silence before auto-stop
         "ready": False,
@@ -549,7 +567,7 @@ DEFAULT_CONFIG = {
     },
 
     # Config schema version - bump this when adding new required fields
-    "_config_version": 12,
+    "_config_version": 13,
 }
 
 # =============================================================================
@@ -565,6 +583,7 @@ ENV_VARS_BY_VERSION: Dict[int, List[str]] = {
         "SLACK_BOT_TOKEN", "SLACK_APP_TOKEN", "SLACK_ALLOWED_USERS"],
     10: ["TAVILY_API_KEY"],
     11: ["TERMINAL_MODAL_MODE"],
+    13: [],
 }
 
 # Required environment variables with metadata for migration prompts.

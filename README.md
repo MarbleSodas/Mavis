@@ -1,20 +1,20 @@
 # Mavis
 
-Mavis is a direct fork of Hermes Agent, reworked as a voice-first agent harness with Mavis branding and local-first speech defaults built in.
+Mavis is a voice-first agent harness with local-first speech defaults built in.
 
-This repository now ships the Hermes agent loop, gateway, sessions, cron, ACP integration, plugins, and tools as its foundation. The earlier Tauri/Vue prototype has been removed.
+This repository ships the agent loop, gateway, sessions, cron, ACP integration, plugins, and tools as its foundation. The earlier Tauri/Vue prototype has been removed.
 
 ## What Changed
 
-- Upstream base: `NousResearch/hermes-agent` tag `v2026.4.8`
+- Upstream base: pinned to `v2026.4.8`
 - Primary commands: `mavis`, `mavis-agent`, `mavis-acp`
 - Primary config home: `~/.mavis` with `MAVIS_HOME`
-- Legacy import: existing `~/.hermes` state is copied into `~/.mavis` on first run
+- Legacy import: use `mavis migrate-hermes` to copy an existing `~/.hermes` home into `~/.mavis`
 - Voice defaults:
   - STT provider: local `faster-whisper`
-  - STT model: `base`
-  - TTS provider: `edge`
-  - CLI voice loop: `/voice`
+  - STT model: `small`
+  - TTS provider: `piper`
+  - CLI voice loop: `/voice on` hotword mode
   - Auto TTS: enabled by default
 
 ## Quick Start
@@ -22,7 +22,7 @@ This repository now ships the Hermes agent loop, gateway, sessions, cron, ACP in
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e ".[voice-local]"
 mavis setup
 mavis
 ```
@@ -63,22 +63,17 @@ Mavis stores its runtime state in `~/.mavis/` by default:
 
 You can override the location with `MAVIS_HOME=/custom/path`.
 
-For compatibility, internal code still understands legacy `HERMES_HOME`, but the public Mavis path is `~/.mavis`.
-
 ## Speech Stack
 
-Built-in voice support comes from the upstream Hermes voice pipeline, including:
+Built-in voice support includes:
 
-- push-to-talk CLI voice mode
+- always-listening hotword mode (`Hey Mavis, ...`)
+- push-to-talk CLI fallback (`/voice ptt`)
 - silence detection and barge-in
 - sentence-level streaming TTS
 - Whisper hallucination filtering
 - gateway voice replies for Telegram and Discord
 - Discord voice-channel speech loops
-
-## Upstream Sync
-
-This repo tracks Hermes as an `upstream` remote for future syncs, but Mavis should be rebased from tagged Hermes releases rather than re-implementing upstream internals by hand.
 
 ## Development
 

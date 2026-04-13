@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mavis-agent"
 version = "0.8.0"
-description = "Mavis is a voice-first agent harness built on Hermes Agent with local-first speech-to-speech defaults."
+description = "Mavis is a voice-first agent harness with local-first speech-to-speech defaults."
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Mavis Contributors" }]
@@ -34,7 +34,7 @@ dependencies = [
   "faster-whisper>=1.0.0,<2",
   "sounddevice>=0.4.6,<1",
   "numpy>=1.24.0,<3",
-  # Text-to-speech (Edge TTS is free, no API key needed)
+  # Text-to-speech compatibility providers
   "edge-tts>=7.2.7,<8",
   # Skills Hub (GitHub App JWT auth — optional, only needed for bot identity)
   "PyJWT[crypto]>=2.12.0,<3",  # CVE-2026-32597
@@ -55,6 +55,11 @@ voice = [
   "faster-whisper>=1.0.0,<2",
   "sounddevice>=0.4.6,<1",
   "numpy>=1.24.0,<3",
+]
+voice-local = [
+  "piper-tts>=1.3.0,<2",
+  "openwakeword>=0.6.0,<1",
+  "onnxruntime>=1.20.0,<2",
 ]
 pty = [
   "ptyprocess>=0.7.0,<1; sys_platform != 'win32'",
@@ -95,6 +100,7 @@ all = [
   "mavis-agent[sms]",
   "mavis-agent[acp]",
   "mavis-agent[voice]",
+  "mavis-agent[voice-local]",
   "mavis-agent[dingtalk]",
   "mavis-agent[feishu]",
 ]

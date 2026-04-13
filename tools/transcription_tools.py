@@ -2,10 +2,10 @@
 """
 Transcription Tools Module
 
-Provides speech-to-text transcription with three providers:
+Provides speech-to-text transcription with local-first defaults:
 
   - **local** (default, free) — faster-whisper running locally, no API key needed.
-    Auto-downloads the model (~150 MB for ``base``) on first use.
+    Auto-downloads the model on first use.
   - **groq** (free tier) — Groq Whisper API, requires ``GROQ_API_KEY``.
   - **openai** (paid) — OpenAI Whisper API, requires ``VOICE_TOOLS_OPENAI_KEY``.
 
@@ -63,7 +63,7 @@ _HAS_OPENAI = _safe_find_spec("openai")
 # ---------------------------------------------------------------------------
 
 DEFAULT_PROVIDER = "local"
-DEFAULT_LOCAL_MODEL = "base"
+DEFAULT_LOCAL_MODEL = "small"
 DEFAULT_LOCAL_STT_LANGUAGE = "en"
 DEFAULT_STT_MODEL = os.getenv("STT_OPENAI_MODEL", "whisper-1")
 DEFAULT_GROQ_STT_MODEL = os.getenv("STT_GROQ_MODEL", "whisper-large-v3-turbo")
@@ -177,8 +177,8 @@ def _get_provider(stt_config: dict) -> str:
     """Determine which STT provider to use.
 
     When ``stt.provider`` is explicitly set in config, that choice is
-    honoured — no silent cloud fallback.  When no provider is configured,
-    auto-detect tries: local > groq (free) > openai (paid).
+    honoured — no silent cloud fallback. When no provider is configured,
+    auto-detect stays local-only: local > local command > none.
     """
     if not is_stt_enabled(stt_config):
         return "none"
@@ -229,18 +229,12 @@ def _get_provider(stt_config: dict) -> str:
 
         return provider  # Unknown — let it fail downstream
 
-    # --- Auto-detect (no explicit provider): local > groq > openai ---------
+    # --- Auto-detect (no explicit provider): local-only ---------------------
 
     if _HAS_FASTER_WHISPER:
         return "local"
     if _has_local_command():
         return "local_command"
-    if _HAS_OPENAI and os.getenv("GROQ_API_KEY"):
-        logger.info("No local STT available, using Groq Whisper API")
-        return "groq"
-    if _HAS_OPENAI and _has_openai_audio_backend():
-        logger.info("No local STT available, using OpenAI Whisper API")
-        return "openai"
     return "none"
 
 # ---------------------------------------------------------------------------
@@ -527,7 +521,7 @@ def transcribe_audio(file_path: str, model: Optional[str] = None) -> Dict[str, A
 
     Provider priority:
       1. User config (``stt.provider`` in config.yaml)
-      2. Auto-detect: local faster-whisper (free) > Groq (free tier) > OpenAI (paid)
+      2. Auto-detect: local faster-whisper > local whisper command
 
     Args:
         file_path: Absolute path to the audio file to transcribe.
@@ -582,10 +576,8 @@ def transcribe_audio(file_path: str, model: Optional[str] = None) -> Dict[str, A
         "success": False,
         "transcript": "",
         "error": (
-            "No STT provider available. Install faster-whisper for free local "
-            f"transcription, configure {LOCAL_STT_COMMAND_ENV} or install a local whisper CLI, "
-            "set GROQ_API_KEY for free Groq Whisper, or set VOICE_TOOLS_OPENAI_KEY "
-            "or OPENAI_API_KEY for the OpenAI Whisper API."
+            "No local STT provider available. Install faster-whisper for on-device "
+            f"transcription or configure {LOCAL_STT_COMMAND_ENV} for a local whisper CLI."
         ),
     }
 

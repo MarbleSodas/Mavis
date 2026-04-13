@@ -1,22 +1,22 @@
 """
-Profile management for multiple isolated Hermes instances.
+Profile management for multiple isolated Mavis instances.
 
-Each profile is a fully independent HERMES_HOME directory with its own
+Each profile is a fully independent MAVIS_HOME directory with its own
 config.yaml, .env, memory, sessions, skills, gateway, cron, and logs.
-Profiles live under ``~/.hermes/profiles/<name>/`` by default.
+Profiles live under ``~/.mavis/profiles/<name>/`` by default.
 
-The "default" profile is ``~/.hermes`` itself — backward compatible,
+The "default" profile is ``~/.mavis`` itself — backward compatible,
 zero migration needed.
 
 Usage::
 
-    hermes profile create coder          # fresh profile + bundled skills
-    hermes profile create coder --clone  # also copy config, .env, SOUL.md
-    hermes profile create coder --clone-all  # full copy of source profile
+    mavis profile create coder          # fresh profile + bundled skills
+    mavis profile create coder --clone  # also copy config, .env, SOUL.md
+    mavis profile create coder --clone-all  # full copy of source profile
     coder chat                           # use via wrapper alias
-    hermes -p coder chat                 # or via flag
-    hermes profile use coder             # set as sticky default
-    hermes profile delete coder          # remove profile + alias + service
+    mavis -p coder chat                 # or via flag
+    mavis profile use coder             # set as sticky default
+    mavis profile delete coder          # remove profile + alias + service
 """
 
 import json
@@ -66,12 +66,13 @@ _CLONE_ALL_STRIP = [
     "processes.json",
 ]
 
-# Directories/files to exclude when exporting the default (~/.hermes) profile.
+# Directories/files to exclude when exporting the default (~/.mavis) profile.
 # The default profile contains infrastructure (repo checkout, worktrees, DBs,
 # caches, binaries) that named profiles don't have.  We exclude those so the
 # export is a portable, reasonable-size archive of actual profile data.
 _DEFAULT_EXPORT_EXCLUDE_ROOT = frozenset({
     # Infrastructure
+    "mavis-agent",          # repo checkout (multi-GB)
     "hermes-agent",         # repo checkout (multi-GB)
     ".worktrees",           # git worktrees
     "profiles",             # other profiles — never recursive-export
@@ -86,7 +87,7 @@ _DEFAULT_EXPORT_EXCLUDE_ROOT = frozenset({
     ".env",                 # API keys (dotenv)
     "auth.lock", "active_profile", ".update_check",
     "errors.log",
-    ".hermes_history",
+    ".mavis_history",
     # Caches (regenerated on use)
     "image_cache", "audio_cache", "document_cache",
     "browser_screenshots", "checkpoints",
@@ -96,10 +97,10 @@ _DEFAULT_EXPORT_EXCLUDE_ROOT = frozenset({
 
 # Names that cannot be used as profile aliases
 _RESERVED_NAMES = frozenset({
-    "hermes", "default", "test", "tmp", "root", "sudo",
+    "mavis", "hermes", "default", "test", "tmp", "root", "sudo",
 })
 
-# Hermes subcommands that cannot be used as profile names/aliases
+# Mavis subcommands that cannot be used as profile names/aliases
 _HERMES_SUBCOMMANDS = frozenset({
     "chat", "model", "gateway", "setup", "whatsapp", "login", "logout",
     "status", "cron", "doctor", "config", "pairing", "skills", "tools",
@@ -115,16 +116,16 @@ _HERMES_SUBCOMMANDS = frozenset({
 def _get_profiles_root() -> Path:
     """Return the directory where named profiles are stored.
 
-    Always ``~/.hermes/profiles/`` — anchored to the user's home,
-    NOT to the current HERMES_HOME (which may itself be a profile).
+    Always ``~/.mavis/profiles/`` — anchored to the user's home,
+    NOT to the current MAVIS_HOME (which may itself be a profile).
     This ensures ``coder profile list`` can see all profiles.
     """
-    return Path.home() / ".hermes" / "profiles"
+    return Path.home() / ".mavis" / "profiles"
 
 
 def _get_default_hermes_home() -> Path:
-    """Return the default (pre-profile) HERMES_HOME path."""
-    return Path.home() / ".hermes"
+    """Return the default (pre-profile) MAVIS_HOME path."""
+    return Path.home() / ".mavis"
 
 
 def _get_active_profile_path() -> Path:
@@ -144,7 +145,7 @@ def _get_wrapper_dir() -> Path:
 def validate_profile_name(name: str) -> None:
     """Raise ``ValueError`` if *name* is not a valid profile identifier."""
     if name == "default":
-        return  # special alias for ~/.hermes
+        return  # special alias for ~/.mavis
     if not _PROFILE_ID_RE.match(name):
         raise ValueError(
             f"Invalid profile name {name!r}. Must match "
@@ -153,7 +154,7 @@ def validate_profile_name(name: str) -> None:
 
 
 def get_profile_dir(name: str) -> Path:
-    """Resolve a profile name to its HERMES_HOME directory."""
+    """Resolve a profile name to its MAVIS_HOME directory."""
     if name == "default":
         return _get_default_hermes_home()
     return _get_profiles_root() / name
@@ -192,7 +193,7 @@ def check_alias_collision(name: str) -> Optional[str]:
             if existing_path == str(wrapper_dir / name):
                 try:
                     content = (wrapper_dir / name).read_text()
-                    if "hermes -p" in content:
+                    if "mavis -p" in content:
                         return None  # it's our wrapper, safe to overwrite
                 except Exception:
                     pass
@@ -223,7 +224,7 @@ def create_wrapper_script(name: str) -> Optional[Path]:
 
     wrapper_path = wrapper_dir / name
     try:
-        wrapper_path.write_text(f'#!/bin/sh\nexec hermes -p {name} "$@"\n')
+        wrapper_path.write_text(f'#!/bin/sh\nexec mavis -p {name} "$@"\n')
         wrapper_path.chmod(wrapper_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
         return wrapper_path
     except OSError as e:
@@ -238,7 +239,7 @@ def remove_wrapper_script(name: str) -> bool:
         try:
             # Verify it's our wrapper before removing
             content = wrapper_path.read_text()
-            if "hermes -p" in content:
+            if "mavis -p" in content:
                 wrapper_path.unlink()
                 return True
         except Exception:
@@ -395,7 +396,7 @@ def create_profile(
 
     if name == "default":
         raise ValueError(
-            "Cannot create a profile named 'default' — it is the built-in profile (~/.hermes)."
+            "Cannot create a profile named 'default' — it is the built-in profile (~/.mavis)."
         )
 
     profile_dir = get_profile_dir(name)
@@ -450,7 +451,7 @@ def create_profile(
 def seed_profile_skills(profile_dir: Path, quiet: bool = False) -> Optional[dict]:
     """Seed bundled skills into a profile via subprocess.
 
-    Uses subprocess because sync_skills() caches HERMES_HOME at module level.
+    Uses subprocess because sync_skills() caches MAVIS_HOME at module level.
     Returns the sync result dict, or None on failure.
     """
     project_root = Path(__file__).parent.parent.resolve()
@@ -459,7 +460,7 @@ def seed_profile_skills(profile_dir: Path, quiet: bool = False) -> Optional[dict
             [sys.executable, "-c",
              "import json; from tools.skills_sync import sync_skills; "
              "r = sync_skills(quiet=True); print(json.dumps(r))"],
-            env={**os.environ, "HERMES_HOME": str(profile_dir)},
+            env={**os.environ, "MAVIS_HOME": str(profile_dir)},
             cwd=str(project_root),
             capture_output=True, text=True, timeout=60,
         )
@@ -492,8 +493,8 @@ def delete_profile(name: str, yes: bool = False) -> Path:
 
     if name == "default":
         raise ValueError(
-            "Cannot delete the default profile (~/.hermes).\n"
-            "To remove everything, use: hermes uninstall"
+            "Cannot delete the default profile (~/.mavis).\n"
+            "To remove everything, use: mavis uninstall"
         )
 
     profile_dir = get_profile_dir(name)
@@ -577,10 +578,10 @@ def _cleanup_gateway_service(name: str, profile_dir: Path) -> None:
     import platform as _platform
 
     # Derive service name for this profile
-    # Temporarily set HERMES_HOME so _profile_suffix resolves correctly
-    old_home = os.environ.get("HERMES_HOME")
+    # Temporarily set MAVIS_HOME so _profile_suffix resolves correctly
+    old_home = os.environ.get("MAVIS_HOME")
     try:
-        os.environ["HERMES_HOME"] = str(profile_dir)
+        os.environ["MAVIS_HOME"] = str(profile_dir)
         from hermes_cli.gateway import get_service_name, get_launchd_plist_path
 
         if _platform.system() == "Linux":
@@ -615,9 +616,9 @@ def _cleanup_gateway_service(name: str, profile_dir: Path) -> None:
         print(f"⚠ Service cleanup: {e}")
     finally:
         if old_home is not None:
-            os.environ["HERMES_HOME"] = old_home
-        elif "HERMES_HOME" in os.environ:
-            del os.environ["HERMES_HOME"]
+            os.environ["MAVIS_HOME"] = old_home
+        elif "MAVIS_HOME" in os.environ:
+            del os.environ["MAVIS_HOME"]
 
 
 def _stop_gateway_process(profile_dir: Path) -> None:
@@ -676,13 +677,13 @@ def get_active_profile() -> str:
 def set_active_profile(name: str) -> None:
     """Set the sticky active profile.
 
-    Writes to ``~/.hermes/active_profile``. Use ``"default"`` to clear.
+    Writes to ``~/.mavis/active_profile``. Use ``"default"`` to clear.
     """
     validate_profile_name(name)
     if name != "default" and not profile_exists(name):
         raise FileNotFoundError(
             f"Profile '{name}' does not exist. "
-            f"Create it with: hermes profile create {name}"
+            f"Create it with: mavis profile create {name}"
         )
 
     path = _get_active_profile_path()
@@ -698,11 +699,11 @@ def set_active_profile(name: str) -> None:
 
 
 def get_active_profile_name() -> str:
-    """Infer the current profile name from HERMES_HOME.
+    """Infer the current profile name from MAVIS_HOME.
 
-    Returns ``"default"`` if HERMES_HOME is not set or points to ``~/.hermes``.
-    Returns the profile name if HERMES_HOME points into ``~/.hermes/profiles/<name>``.
-    Returns ``"custom"`` if HERMES_HOME is set to an unrecognized path.
+    Returns ``"default"`` if MAVIS_HOME is not set or points to ``~/.mavis``.
+    Returns the profile name if MAVIS_HOME points into ``~/.mavis/profiles/<name>``.
+    Returns ``"custom"`` if MAVIS_HOME is set to an unrecognized path.
     """
     from hermes_constants import get_hermes_home
     hermes_home = get_hermes_home()
@@ -769,8 +770,8 @@ def export_profile(name: str, output_path: str) -> Path:
     base = str(output).removesuffix(".tar.gz").removesuffix(".tgz")
 
     if name == "default":
-        # The default profile IS ~/.hermes itself — its parent is ~/ and its
-        # directory name is ".hermes", not "default".  We stage a clean copy
+        # The default profile IS ~/.mavis itself — its parent is ~/ and its
+        # directory name is ".mavis", not "default".  We stage a clean copy
         # under a temp dir so the archive contains ``default/...``.
         with tempfile.TemporaryDirectory() as tmpdir:
             staged = Path(tmpdir) / "default"
@@ -878,16 +879,16 @@ def import_profile(archive_path: str, name: Optional[str] = None) -> Path:
     if not inferred_name:
         raise ValueError(
             "Cannot determine profile name from archive. "
-            "Specify it explicitly: hermes profile import <archive> --name <name>"
+            "Specify it explicitly: mavis profile import <archive> --name <name>"
         )
 
     # Archives exported from the default profile have "default/" as top-level
-    # dir.  Importing as "default" would target ~/.hermes itself — disallow
+    # dir.  Importing as "default" would target ~/.mavis itself — disallow
     # that and guide the user toward a named profile.
     if inferred_name == "default":
         raise ValueError(
-            "Cannot import as 'default' — that is the built-in root profile (~/.hermes). "
-            "Specify a different name: hermes profile import <archive> --name <name>"
+            "Cannot import as 'default' — that is the built-in root profile (~/.mavis). "
+            "Specify a different name: mavis profile import <archive> --name <name>"
         )
 
     validate_profile_name(inferred_name)
@@ -967,12 +968,12 @@ def rename_profile(old_name: str, new_name: str) -> Path:
 # ---------------------------------------------------------------------------
 
 def generate_bash_completion() -> str:
-    """Generate a bash completion script for hermes profile names."""
-    return '''# Hermes Agent profile completion
-# Add to ~/.bashrc: eval "$(hermes completion bash)"
+    """Generate a bash completion script for mavis profile names."""
+    return '''# Mavis profile completion
+# Add to ~/.bashrc: eval "$(mavis completion bash)"
 
 _hermes_profiles() {
-    local profiles_dir="$HOME/.hermes/profiles"
+    local profiles_dir="$HOME/.mavis/profiles"
     local profiles="default"
     if [ -d "$profiles_dir" ]; then
         profiles="$profiles $(ls "$profiles_dir" 2>/dev/null)"
@@ -1012,21 +1013,21 @@ _hermes_completion() {
     fi
 }
 
-complete -F _hermes_completion hermes
+complete -F _hermes_completion mavis
 '''
 
 
 def generate_zsh_completion() -> str:
-    """Generate a zsh completion script for hermes profile names."""
-    return '''#compdef hermes
-# Hermes Agent profile completion
-# Add to ~/.zshrc: eval "$(hermes completion zsh)"
+    """Generate a zsh completion script for mavis profile names."""
+    return '''#compdef mavis
+# Mavis profile completion
+# Add to ~/.zshrc: eval "$(mavis completion zsh)"
 
 _hermes() {
     local -a profiles
     profiles=(default)
-    if [[ -d "$HOME/.hermes/profiles" ]]; then
-        profiles+=("${(@f)$(ls $HOME/.hermes/profiles 2>/dev/null)}")
+    if [[ -d "$HOME/.mavis/profiles" ]]; then
+        profiles+=("${(@f)$(ls $HOME/.mavis/profiles 2>/dev/null)}")
     fi
 
     _arguments \\
@@ -1052,10 +1053,10 @@ _hermes "$@"
 # ---------------------------------------------------------------------------
 
 def resolve_profile_env(profile_name: str) -> str:
-    """Resolve a profile name to a HERMES_HOME path string.
+    """Resolve a profile name to a MAVIS_HOME path string.
 
     Called early in the CLI entry point, before any hermes modules
-    are imported, to set the HERMES_HOME environment variable.
+    are imported, to set the MAVIS_HOME environment variable.
     """
     validate_profile_name(profile_name)
     profile_dir = get_profile_dir(profile_name)
@@ -1063,7 +1064,7 @@ def resolve_profile_env(profile_name: str) -> str:
     if profile_name != "default" and not profile_dir.is_dir():
         raise FileNotFoundError(
             f"Profile '{profile_name}' does not exist. "
-            f"Create it with: hermes profile create {profile_name}"
+            f"Create it with: mavis profile create {profile_name}"
         )
 
     return str(profile_dir)

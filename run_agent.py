@@ -744,8 +744,8 @@ class AIAgent:
                 effective_base = base_url
                 if "openrouter" in effective_base.lower():
                     client_kwargs["default_headers"] = {
-                        "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-                        "X-OpenRouter-Title": "Hermes Agent",
+                        "HTTP-Referer": "https://github.com/MarbleSodas/Mavis",
+                        "X-OpenRouter-Title": "Mavis",
                         "X-OpenRouter-Categories": "productivity,cli-agent",
                     }
                 elif "api.githubcopilot.com" in effective_base.lower():
@@ -778,15 +778,15 @@ class AIAgent:
                         raise RuntimeError(
                             f"Provider '{_explicit}' is set in config.yaml but no API key "
                             f"was found. Set the {_explicit.upper()}_API_KEY environment "
-                            f"variable, or switch to a different provider with `hermes model`."
+                            f"variable, or switch to a different provider with `mavis model`."
                         )
                     # Final fallback: try raw OpenRouter key
                     client_kwargs = {
                         "api_key": os.getenv("OPENROUTER_API_KEY", ""),
                         "base_url": OPENROUTER_BASE_URL,
                         "default_headers": {
-                            "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-                            "X-OpenRouter-Title": "Hermes Agent",
+                            "HTTP-Referer": "https://github.com/MarbleSodas/Mavis",
+                            "X-OpenRouter-Title": "Mavis",
                             "X-OpenRouter-Categories": "productivity,cli-agent",
                         },
                     }
@@ -1048,7 +1048,7 @@ class AIAgent:
                             from hermes_cli.profiles import get_active_profile_name
                             _profile = get_active_profile_name()
                             _init_kwargs["agent_identity"] = _profile
-                            _init_kwargs["agent_workspace"] = "hermes"
+                            _init_kwargs["agent_workspace"] = "mavis"
                         except Exception:
                             pass
                         self._memory_manager.initialize_all(**_init_kwargs)
@@ -5427,7 +5427,7 @@ class AIAgent:
 
         # Nous Portal product attribution
         if _is_nous:
-            extra_body["tags"] = ["product=hermes-agent"]
+            extra_body["tags"] = ["product=mavis-agent"]
 
         # Ollama num_ctx: override the 2048 default so the model actually
         # uses the context window it was trained for.  Passed via the OpenAI
@@ -6691,7 +6691,7 @@ class AIAgent:
                         "effort": "medium"
                     }
             if _is_nous:
-                summary_extra_body["tags"] = ["product=hermes-agent"]
+                summary_extra_body["tags"] = ["product=mavis-agent"]
 
             if self.api_mode == "codex_responses":
                 codex_kwargs = self._build_api_kwargs(api_messages)
@@ -7878,8 +7878,8 @@ class AIAgent:
                         print(f"{self.log_prefix}     • Check ANTHROPIC_API_KEY in {_dhh}/.env for API keys or legacy token values")
                         print(f"{self.log_prefix}     • For API keys: verify at https://console.anthropic.com/settings/keys")
                         print(f"{self.log_prefix}     • For Claude Code: run 'claude /login' to refresh, then retry")
-                        print(f"{self.log_prefix}     • Legacy cleanup: hermes config set ANTHROPIC_TOKEN \"\"")
-                        print(f"{self.log_prefix}     • Clear stale keys: hermes config set ANTHROPIC_API_KEY \"\"")
+                        print(f"{self.log_prefix}     • Legacy cleanup: mavis config set ANTHROPIC_TOKEN \"\"")
+                        print(f"{self.log_prefix}     • Clear stale keys: mavis config set ANTHROPIC_API_KEY \"\"")
 
                     # ── Thinking block signature recovery ─────────────────
                     # Anthropic signs thinking blocks against the full turn
@@ -8269,10 +8269,10 @@ class AIAgent:
                                 self._vprint(f"{self.log_prefix}   💡 Codex OAuth token was rejected (HTTP 401). Your token may have been", force=True)
                                 self._vprint(f"{self.log_prefix}      refreshed by another client (Codex CLI, VS Code). To fix:", force=True)
                                 self._vprint(f"{self.log_prefix}      1. Run `codex` in your terminal to generate fresh tokens.", force=True)
-                                self._vprint(f"{self.log_prefix}      2. Then run `hermes auth` to re-authenticate.", force=True)
+                                self._vprint(f"{self.log_prefix}      2. Then run `mavis auth` to re-authenticate.", force=True)
                             else:
                                 self._vprint(f"{self.log_prefix}   💡 Your API key was rejected by the provider. Check:", force=True)
-                                self._vprint(f"{self.log_prefix}      • Is the key valid? Run: hermes setup", force=True)
+                                self._vprint(f"{self.log_prefix}      • Is the key valid? Run: mavis setup", force=True)
                                 self._vprint(f"{self.log_prefix}      • Does your account have access to {_model}?", force=True)
                                 if "openrouter" in str(_base).lower():
                                     self._vprint(f"{self.log_prefix}      • Check credits: https://openrouter.ai/settings/credits", force=True)

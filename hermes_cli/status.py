@@ -1,8 +1,4 @@
-"""
-Status command for hermes CLI.
-
-Shows the status of all Hermes Agent components.
-"""
+"""Status command for the Mavis CLI."""
 
 import os
 import sys
@@ -17,7 +13,7 @@ from hermes_cli.config import get_env_path, get_env_value, get_hermes_home, load
 from hermes_cli.models import provider_label
 from hermes_cli.nous_subscription import get_nous_subscription_features
 from hermes_cli.runtime_provider import resolve_requested_provider
-from hermes_constants import OPENROUTER_MODELS_URL
+from hermes_constants import APP_NAME, CLI_NAME, OPENROUTER_MODELS_URL
 from tools.tool_backend_helpers import managed_nous_tools_enabled
 
 def check_mark(ok: bool) -> str:
@@ -80,13 +76,13 @@ def _effective_provider_label() -> str:
 
 
 def show_status(args):
-    """Show status of all Hermes Agent components."""
+    """Show status of all Mavis components."""
     show_all = getattr(args, 'all', False)
     deep = getattr(args, 'deep', False)
     
     print()
     print(color("┌─────────────────────────────────────────────────────────┐", Colors.CYAN))
-    print(color("│                 ⚕ Hermes Agent Status                  │", Colors.CYAN))
+    print(color(f"│{f'{APP_NAME} Status':^57}│", Colors.CYAN))
     print(color("└─────────────────────────────────────────────────────────┘", Colors.CYAN))
     
     # =========================================================================
@@ -163,7 +159,7 @@ def show_status(args):
     nous_logged_in = bool(nous_status.get("logged_in"))
     print(
         f"  {'Nous Portal':<12}  {check_mark(nous_logged_in)} "
-        f"{'logged in' if nous_logged_in else 'not logged in (run: hermes model)'}"
+        f"{'logged in' if nous_logged_in else f'not logged in (run: {CLI_NAME} model)'}"
     )
     if nous_logged_in:
         portal_url = nous_status.get("portal_base_url") or "(unknown)"
@@ -178,7 +174,7 @@ def show_status(args):
     codex_logged_in = bool(codex_status.get("logged_in"))
     print(
         f"  {'OpenAI Codex':<12}  {check_mark(codex_logged_in)} "
-        f"{'logged in' if codex_logged_in else 'not logged in (run: hermes model)'}"
+        f"{'logged in' if codex_logged_in else f'not logged in (run: {CLI_NAME} model)'}"
     )
     codex_auth_file = codex_status.get("auth_store")
     if codex_auth_file:
@@ -233,7 +229,7 @@ def show_status(args):
             if key_val:
                 break
         configured = bool(key_val)
-        label = "configured" if configured else "not configured (run: hermes model)"
+        label = "configured" if configured else f"not configured (run: {CLI_NAME} model)"
         print(f"  {pname:<16} {check_mark(configured)} {label}")
 
     # =========================================================================
@@ -312,7 +308,7 @@ def show_status(args):
             from hermes_cli.gateway import get_service_name
             _gw_svc = get_service_name()
         except Exception:
-            _gw_svc = "hermes-gateway"
+            _gw_svc = "mavis-gateway"
         try:
             result = subprocess.run(
                 ["systemctl", "--user", "is-active", _gw_svc],
@@ -420,6 +416,6 @@ def show_status(args):
     
     print()
     print(color("─" * 60, Colors.DIM))
-    print(color("  Run 'hermes doctor' for detailed diagnostics", Colors.DIM))
-    print(color("  Run 'hermes setup' to configure", Colors.DIM))
+    print(color(f"  Run '{CLI_NAME} doctor' for detailed diagnostics", Colors.DIM))
+    print(color(f"  Run '{CLI_NAME} setup' to configure", Colors.DIM))
     print()

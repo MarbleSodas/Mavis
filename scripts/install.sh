@@ -29,8 +29,7 @@ BOLD='\033[1m'
 REPO_URL_SSH="git@github.com:MarbleSodas/Mavis.git"
 REPO_URL_HTTPS="https://github.com/MarbleSodas/Mavis.git"
 MAVIS_HOME="${MAVIS_HOME:-$HOME/.mavis}"
-HERMES_HOME="${HERMES_HOME:-$MAVIS_HOME}"
-INSTALL_DIR="${MAVIS_INSTALL_DIR:-$HERMES_HOME/mavis-agent}"
+INSTALL_DIR="${MAVIS_INSTALL_DIR:-$MAVIS_HOME/mavis-agent}"
 PYTHON_VERSION="3.11"
 NODE_VERSION="22"
 
@@ -97,7 +96,7 @@ print_banner() {
     echo "┌─────────────────────────────────────────────────────────┐"
     echo "│                   Mavis Installer                       │"
     echo "├─────────────────────────────────────────────────────────┤"
-    echo "│  Voice-first agent harness built on Hermes Agent.       │"
+    echo "│  Voice-first agent harness with built-in speech support.       │"
     echo "└─────────────────────────────────────────────────────────┘"
     echo -e "${NC}"
 }
@@ -283,10 +282,10 @@ check_node() {
     fi
 
     # Check our own managed install from a previous run
-    if [ -x "$HERMES_HOME/node/bin/node" ]; then
-        export PATH="$HERMES_HOME/node/bin:$PATH"
-        local found_ver=$("$HERMES_HOME/node/bin/node" --version)
-        log_success "Node.js $found_ver found (Hermes-managed)"
+    if [ -x "$MAVIS_HOME/node/bin/node" ]; then
+        export PATH="$MAVIS_HOME/node/bin:$PATH"
+        local found_ver=$("$MAVIS_HOME/node/bin/node" --version)
+        log_success "Node.js $found_ver found (Mavis-managed)"
         HAS_NODE=true
         return 0
     fi
@@ -372,20 +371,20 @@ install_node() {
     fi
 
     # Place into ~/.mavis/node/ and symlink binaries to ~/.local/bin/
-    rm -rf "$HERMES_HOME/node"
-    mkdir -p "$HERMES_HOME"
-    mv "$extracted_dir" "$HERMES_HOME/node"
+    rm -rf "$MAVIS_HOME/node"
+    mkdir -p "$MAVIS_HOME"
+    mv "$extracted_dir" "$MAVIS_HOME/node"
     rm -rf "$tmp_dir"
 
     mkdir -p "$HOME/.local/bin"
-    ln -sf "$HERMES_HOME/node/bin/node" "$HOME/.local/bin/node"
-    ln -sf "$HERMES_HOME/node/bin/npm"  "$HOME/.local/bin/npm"
-    ln -sf "$HERMES_HOME/node/bin/npx"  "$HOME/.local/bin/npx"
+    ln -sf "$MAVIS_HOME/node/bin/node" "$HOME/.local/bin/node"
+    ln -sf "$MAVIS_HOME/node/bin/npm"  "$HOME/.local/bin/npm"
+    ln -sf "$MAVIS_HOME/node/bin/npx"  "$HOME/.local/bin/npx"
 
-    export PATH="$HERMES_HOME/node/bin:$PATH"
+    export PATH="$MAVIS_HOME/node/bin:$PATH"
 
     local installed_ver
-    installed_ver=$("$HERMES_HOME/node/bin/node" --version 2>/dev/null)
+    installed_ver=$("$MAVIS_HOME/node/bin/node" --version 2>/dev/null)
     log_success "Node.js $installed_ver installed to ~/.mavis/node/"
     HAS_NODE=true
 }
@@ -570,7 +569,7 @@ clone_repo() {
             local autostash_ref=""
             if [ -n "$(git status --porcelain)" ]; then
                 local stash_name
-                stash_name="hermes-install-autostash-$(date -u +%Y%m%d-%H%M%S)"
+                stash_name="mavis-install-autostash-$(date -u +%Y%m%d-%H%M%S)"
                 log_info "Local changes detected, stashing before update..."
                 git stash push --include-untracked -m "$stash_name"
                 autostash_ref="$(git rev-parse --verify refs/stash)"
@@ -599,7 +598,7 @@ clone_repo() {
                     if git stash apply "$autostash_ref"; then
                         git stash drop "$autostash_ref" >/dev/null
                         log_warn "Local changes were restored on top of the updated codebase."
-                        log_warn "Review git diff / git status if Hermes behaves unexpectedly."
+                        log_warn "Review git diff / git status if Mavis behaves unexpectedly."
                     else
                         log_error "Update succeeded, but restoring local changes failed. Your changes are still preserved in git stash."
                         log_info "Resolve manually with: git stash apply $autostash_ref"
@@ -731,18 +730,18 @@ setup_path() {
     log_info "Setting up mavis commands..."
 
     if [ "$USE_VENV" = true ]; then
-        HERMES_BIN="$INSTALL_DIR/venv/bin/mavis"
+        MAVIS_BIN="$INSTALL_DIR/venv/bin/mavis"
     else
-        HERMES_BIN="$(which mavis 2>/dev/null || echo "")"
-        if [ -z "$HERMES_BIN" ]; then
+        MAVIS_BIN="$(which mavis 2>/dev/null || echo "")"
+        if [ -z "$MAVIS_BIN" ]; then
             log_warn "mavis not found on PATH after install"
             return 0
         fi
     fi
 
     # Verify the entry point script was actually generated
-    if [ ! -x "$HERMES_BIN" ]; then
-        log_warn "mavis entry point not found at $HERMES_BIN"
+    if [ ! -x "$MAVIS_BIN" ]; then
+        log_warn "mavis entry point not found at $MAVIS_BIN"
         log_info "This usually means the pip install didn't complete successfully."
         log_info "Try: cd $INSTALL_DIR && uv pip install -e '.[all]'"
         return 0
@@ -750,7 +749,7 @@ setup_path() {
 
     # Create symlink in ~/.local/bin (standard user binary location, usually on PATH)
     mkdir -p "$HOME/.local/bin"
-    ln -sf "$HERMES_BIN" "$HOME/.local/bin/mavis"
+    ln -sf "$MAVIS_BIN" "$HOME/.local/bin/mavis"
     [ -x "$INSTALL_DIR/venv/bin/mavis-agent" ] && ln -sf "$INSTALL_DIR/venv/bin/mavis-agent" "$HOME/.local/bin/mavis-agent"
     [ -x "$INSTALL_DIR/venv/bin/mavis-acp" ] && ln -sf "$INSTALL_DIR/venv/bin/mavis-acp" "$HOME/.local/bin/mavis-acp"
     log_success "Symlinked mavis commands into ~/.local/bin"
@@ -805,8 +804,7 @@ setup_path() {
 
     # Export for current session so mavis works immediately
     export PATH="$HOME/.local/bin:$PATH"
-    export MAVIS_HOME="$HERMES_HOME"
-    export HERMES_HOME="$MAVIS_HOME"
+    export MAVIS_HOME="$MAVIS_HOME"
 
     log_success "mavis command ready"
 }
@@ -815,15 +813,15 @@ copy_config_templates() {
     log_info "Setting up configuration files..."
 
     # Create ~/.mavis directory structure (config at top level, code in subdir)
-    mkdir -p "$HERMES_HOME"/{cron,sessions,logs,pairing,hooks,image_cache,audio_cache,memories,skills,whatsapp/session}
+    mkdir -p "$MAVIS_HOME"/{cron,sessions,logs,pairing,hooks,image_cache,audio_cache,memories,skills,whatsapp/session}
 
     # Create .env at ~/.mavis/.env (top level, easy to find)
-    if [ ! -f "$HERMES_HOME/.env" ]; then
+    if [ ! -f "$MAVIS_HOME/.env" ]; then
         if [ -f "$INSTALL_DIR/.env.example" ]; then
-            cp "$INSTALL_DIR/.env.example" "$HERMES_HOME/.env"
+            cp "$INSTALL_DIR/.env.example" "$MAVIS_HOME/.env"
             log_success "Created ~/.mavis/.env from template"
         else
-            touch "$HERMES_HOME/.env"
+            touch "$MAVIS_HOME/.env"
             log_success "Created ~/.mavis/.env"
         fi
     else
@@ -831,9 +829,9 @@ copy_config_templates() {
     fi
 
     # Create config.yaml at ~/.mavis/config.yaml (top level, easy to find)
-    if [ ! -f "$HERMES_HOME/config.yaml" ]; then
+    if [ ! -f "$MAVIS_HOME/config.yaml" ]; then
         if [ -f "$INSTALL_DIR/cli-config.yaml.example" ]; then
-            cp "$INSTALL_DIR/cli-config.yaml.example" "$HERMES_HOME/config.yaml"
+            cp "$INSTALL_DIR/cli-config.yaml.example" "$MAVIS_HOME/config.yaml"
             log_success "Created ~/.mavis/config.yaml from template"
         fi
     else
@@ -841,8 +839,8 @@ copy_config_templates() {
     fi
 
     # Create SOUL.md if it doesn't exist (global persona file)
-    if [ ! -f "$HERMES_HOME/SOUL.md" ]; then
-        cat > "$HERMES_HOME/SOUL.md" << 'SOUL_EOF'
+    if [ ! -f "$MAVIS_HOME/SOUL.md" ]; then
+        cat > "$MAVIS_HOME/SOUL.md" << 'SOUL_EOF'
 # Mavis Persona
 
 <!--
@@ -870,8 +868,8 @@ SOUL_EOF
         log_success "Skills synced to ~/.mavis/skills/"
     else
         # Fallback: simple directory copy if Python sync fails
-        if [ -d "$INSTALL_DIR/skills" ] && [ ! "$(ls -A "$HERMES_HOME/skills/" 2>/dev/null | grep -v '.bundled_manifest')" ]; then
-            cp -r "$INSTALL_DIR/skills/"* "$HERMES_HOME/skills/" 2>/dev/null || true
+        if [ -d "$INSTALL_DIR/skills" ] && [ ! "$(ls -A "$MAVIS_HOME/skills/" 2>/dev/null | grep -v '.bundled_manifest')" ]; then
+            cp -r "$INSTALL_DIR/skills/"* "$MAVIS_HOME/skills/" 2>/dev/null || true
             log_success "Skills copied to ~/.mavis/skills/"
         fi
     fi
@@ -914,7 +912,7 @@ install_node_deps() {
                 ;;
             *)
                 log_info "Playwright may request sudo to install browser system dependencies (shared libraries)."
-                log_info "This is standard Playwright setup — Hermes itself does not require root access."
+                log_info "This is standard Playwright setup — Mavis itself does not require root access."
                 cd "$INSTALL_DIR" && npx playwright install --with-deps chromium 2>/dev/null || true
                 ;;
         esac
@@ -963,7 +961,7 @@ run_setup_wizard() {
 
 maybe_start_gateway() {
     # Check if any messaging platform tokens were configured
-    ENV_FILE="$HERMES_HOME/.env"
+    ENV_FILE="$MAVIS_HOME/.env"
     if [ ! -f "$ENV_FILE" ]; then
         return 0
     fi
@@ -987,7 +985,7 @@ maybe_start_gateway() {
 
     # If WhatsApp is enabled and no session exists yet, run foreground first for QR scan
     WHATSAPP_VAL=$(grep "^WHATSAPP_ENABLED=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2-)
-    WHATSAPP_SESSION="$HERMES_HOME/whatsapp/session/creds.json"
+    WHATSAPP_SESSION="$MAVIS_HOME/whatsapp/session/creds.json"
     if [ "$WHATSAPP_VAL" = "true" ] && [ ! -f "$WHATSAPP_SESSION" ]; then
         if [ "$IS_INTERACTIVE" = true ]; then
             echo ""
@@ -997,9 +995,9 @@ maybe_start_gateway() {
             read -p "Pair WhatsApp now? [Y/n] " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
-                HERMES_CMD="$HOME/.local/bin/mavis"
-                [ ! -x "$HERMES_CMD" ] && HERMES_CMD="mavis"
-                $HERMES_CMD whatsapp || true
+                MAVIS_CMD="$HOME/.local/bin/mavis"
+                [ ! -x "$MAVIS_CMD" ] && MAVIS_CMD="mavis"
+                $MAVIS_CMD whatsapp || true
             fi
         else
             log_info "WhatsApp pairing skipped (non-interactive). Run 'mavis whatsapp' to pair."
@@ -1016,16 +1014,16 @@ maybe_start_gateway() {
     echo
 
     if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
-        HERMES_CMD="$HOME/.local/bin/mavis"
-        if [ ! -x "$HERMES_CMD" ]; then
-            HERMES_CMD="mavis"
+        MAVIS_CMD="$HOME/.local/bin/mavis"
+        if [ ! -x "$MAVIS_CMD" ]; then
+            MAVIS_CMD="mavis"
         fi
 
         if command -v systemctl &> /dev/null; then
             log_info "Installing systemd service..."
-            if $HERMES_CMD gateway install 2>/dev/null; then
+            if $MAVIS_CMD gateway install 2>/dev/null; then
                 log_success "Gateway service installed"
-                if $HERMES_CMD gateway start 2>/dev/null; then
+                if $MAVIS_CMD gateway start 2>/dev/null; then
                     log_success "Gateway started! Your bot is now online."
                 else
                     log_warn "Service installed but failed to start. Try: mavis gateway start"
@@ -1035,7 +1033,7 @@ maybe_start_gateway() {
             fi
         else
             log_info "systemd not available — starting gateway in background..."
-            nohup $HERMES_CMD gateway > "$HERMES_HOME/logs/gateway.log" 2>&1 &
+            nohup $MAVIS_CMD gateway > "$MAVIS_HOME/logs/gateway.log" 2>&1 &
             GATEWAY_PID=$!
             log_success "Gateway started (PID $GATEWAY_PID). Logs: ~/.mavis/logs/gateway.log"
             log_info "To stop: kill $GATEWAY_PID"

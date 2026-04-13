@@ -1,9 +1,9 @@
 """
-Multi-provider authentication system for Hermes Agent.
+Multi-provider authentication system for Mavis.
 
 Supports OAuth device code flows (Nous Portal, future: OpenAI Codex) and
 traditional API key providers (OpenRouter, custom endpoints). Auth state
-is persisted in ~/.hermes/auth.json with cross-process file locking.
+is persisted in the Mavis auth store with cross-process file locking.
 
 Architecture:
 - ProviderConfig registry defines known OAuth providers
@@ -38,7 +38,7 @@ import httpx
 import yaml
 
 from hermes_cli.config import get_hermes_home, get_config_path, read_raw_config
-from hermes_constants import OPENROUTER_BASE_URL
+from hermes_constants import APP_NAME, CLI_NAME, OPENROUTER_BASE_URL, display_hermes_home
 
 logger = logging.getLogger(__name__)
 
@@ -472,7 +472,7 @@ def format_auth_error(error: Exception) -> str:
         return str(error)
 
     if error.relogin_required:
-        return f"{error} Run `hermes model` to re-authenticate."
+        return f"{error} Run `{CLI_NAME} model` to re-authenticate."
 
     if error.code == "subscription_required":
         return (
@@ -840,7 +840,7 @@ def resolve_provider(
         if _config_hint:
             msg += f"\n\n{_config_hint}"
         else:
-            msg += " Check 'hermes model' for available providers, or run 'hermes doctor' to diagnose config issues."
+            msg += f" Check '{CLI_NAME} model' for available providers, or run '{CLI_NAME} doctor' to diagnose config issues."
         raise AuthError(msg, code="invalid_provider")
 
     # Explicit one-off CLI creds always mean openrouter/custom
@@ -875,9 +875,9 @@ def resolve_provider(
                 return pid
 
     raise AuthError(
-        "No inference provider configured. Run 'hermes model' to choose a "
+        f"No inference provider configured. Run '{CLI_NAME} model' to choose a "
         "provider and model, or set an API key (OPENROUTER_API_KEY, "
-        "OPENAI_API_KEY, etc.) in ~/.hermes/.env.",
+        f"OPENAI_API_KEY, etc.) in {display_hermes_home()}/.env.",
         code="no_provider_configured",
     )
 
@@ -977,7 +977,7 @@ def _read_codex_tokens(*, _lock: bool = True) -> Dict[str, Any]:
     state = _load_provider_state(auth_store, "openai-codex")
     if not state:
         raise AuthError(
-            "No Codex credentials stored. Run `hermes auth` to authenticate.",
+            f"No Codex credentials stored. Run `{CLI_NAME} auth` to authenticate.",
             provider="openai-codex",
             code="codex_auth_missing",
             relogin_required=True,
@@ -985,7 +985,7 @@ def _read_codex_tokens(*, _lock: bool = True) -> Dict[str, Any]:
     tokens = state.get("tokens")
     if not isinstance(tokens, dict):
         raise AuthError(
-            "Codex auth state is missing tokens. Run `hermes auth` to re-authenticate.",
+            f"Codex auth state is missing tokens. Run `{CLI_NAME} auth` to re-authenticate.",
             provider="openai-codex",
             code="codex_auth_invalid_shape",
             relogin_required=True,
@@ -994,14 +994,14 @@ def _read_codex_tokens(*, _lock: bool = True) -> Dict[str, Any]:
     refresh_token = tokens.get("refresh_token")
     if not isinstance(access_token, str) or not access_token.strip():
         raise AuthError(
-            "Codex auth is missing access_token. Run `hermes auth` to re-authenticate.",
+            f"Codex auth is missing access_token. Run `{CLI_NAME} auth` to re-authenticate.",
             provider="openai-codex",
             code="codex_auth_missing_access_token",
             relogin_required=True,
         )
     if not isinstance(refresh_token, str) or not refresh_token.strip():
         raise AuthError(
-            "Codex auth is missing refresh_token. Run `hermes auth` to re-authenticate.",
+            f"Codex auth is missing refresh_token. Run `{CLI_NAME} auth` to re-authenticate.",
             provider="openai-codex",
             code="codex_auth_missing_refresh_token",
             relogin_required=True,
@@ -1032,11 +1032,11 @@ def refresh_codex_oauth_pure(
     *,
     timeout_seconds: float = 20.0,
 ) -> Dict[str, Any]:
-    """Refresh Codex OAuth tokens without mutating Hermes auth state."""
+    """Refresh Codex OAuth tokens without mutating Mavis auth state."""
     del access_token  # Access token is only used by callers to decide whether to refresh.
     if not isinstance(refresh_token, str) or not refresh_token.strip():
         raise AuthError(
-            "Codex auth is missing refresh_token. Run `hermes auth` to re-authenticate.",
+            f"Codex auth is missing refresh_token. Run `{CLI_NAME} auth` to re-authenticate.",
             provider="openai-codex",
             code="codex_auth_missing_refresh_token",
             relogin_required=True,
@@ -1076,7 +1076,7 @@ def refresh_codex_oauth_pure(
                 "Codex refresh token was already consumed by another client "
                 "(e.g. Codex CLI or VS Code extension). "
                 "Run `codex` in your terminal to generate fresh tokens, "
-                "then run `hermes auth` to re-authenticate."
+                f"then run `{CLI_NAME} auth` to re-authenticate."
             )
             relogin_required = True
         raise AuthError(
@@ -1190,9 +1190,9 @@ def resolve_codex_runtime_credentials(
         cli_tokens = _import_codex_cli_tokens()
         if cli_tokens:
             logger.info("Migrating Codex credentials from ~/.codex/ to Hermes auth store")
-            print("⚠️  Migrating Codex credentials to Hermes's own auth store.")
+            print(f"⚠️  Migrating Codex credentials to {APP_NAME}'s own auth store.")
             print("   This avoids conflicts with Codex CLI and VS Code.")
-            print("   Run `hermes auth` to create a fully independent session.\n")
+            print(f"   Run `{CLI_NAME} auth` to create a fully independent session.\n")
             _save_codex_tokens(cli_tokens)
             data = _read_codex_tokens()
         else:
@@ -2180,7 +2180,7 @@ def detect_external_credentials() -> List[Dict[str, Any]]:
         found.append({
             "provider": "openai-codex",
             "path": str(codex_path),
-            "label": f"Codex CLI credentials found ({codex_path}) — run `hermes auth` to create a separate session",
+            "label": f"Codex CLI credentials found ({codex_path}) — run `{CLI_NAME} auth` to create a separate session",
         })
 
     return found
@@ -2456,10 +2456,10 @@ def _save_model_choice(model_id: str) -> None:
 
 
 def login_command(args) -> None:
-    """Deprecated: use 'hermes model' or 'hermes setup' instead."""
-    print("The 'hermes login' command has been removed.")
-    print("Use 'hermes auth' to manage credentials,")
-    print("'hermes model' to select a provider, or 'hermes setup' for full setup.")
+    """Deprecated: use 'mavis model' or 'mavis setup' instead."""
+    print(f"The '{CLI_NAME} login' command has been removed.")
+    print(f"Use '{CLI_NAME} auth' to manage credentials,")
+    print(f"'{CLI_NAME} model' to select a provider, or '{CLI_NAME} setup' for full setup.")
     raise SystemExit(0)
 
 
@@ -2506,14 +2506,14 @@ def _login_openai_codex(args, pconfig: ProviderConfig) -> None:
             config_path = _update_config_for_provider("openai-codex", base_url)
             print()
             print("Credentials imported. Note: if Codex CLI refreshes its token,")
-            print("Hermes will keep working independently with its own session.")
+            print(f"{APP_NAME} will keep working independently with its own session.")
             print(f"  Config updated: {config_path} (model.provider=openai-codex)")
             return
 
-    # Run a fresh device code flow — Hermes gets its own OAuth session
+    # Run a fresh device code flow — Mavis gets its own OAuth session
     print()
     print("Signing in to OpenAI Codex...")
-    print("(Hermes creates its own session — won't affect Codex CLI or VS Code)")
+    print(f"({APP_NAME} creates its own session — won't affect Codex CLI or VS Code)")
     print()
 
     creds = _codex_device_code_login()
@@ -2799,7 +2799,7 @@ def _nous_device_code_login(
             print("Your Nous Portal account does not have an active subscription.")
             print(f"  Subscribe here: {portal_url}/billing")
             print()
-            print("After subscribing, run `hermes model` again to finish setup.")
+            print(f"After subscribing, run `{CLI_NAME} model` again to finish setup.")
             raise SystemExit(1)
         raise
 
@@ -2916,8 +2916,8 @@ def logout_command(args) -> None:
         _reset_config_provider()
         print(f"Logged out of {provider_name}.")
         if os.getenv("OPENROUTER_API_KEY"):
-            print("Hermes will use OpenRouter for inference.")
+            print(f"{APP_NAME} will use OpenRouter for inference.")
         else:
-            print("Run `hermes model` or configure an API key to use Hermes.")
+            print(f"Run `{CLI_NAME} model` or configure an API key to use {APP_NAME}.")
     else:
         print(f"No auth state found for {provider_name}.")

@@ -6,7 +6,7 @@ import types
 
 from hermes_cli.auth import get_active_provider
 from hermes_cli.config import load_config, save_config
-from hermes_cli.setup import setup_model_provider
+from hermes_cli.setup import _configure_local_ollama_gemma, setup_model_provider
 
 
 def _maybe_keep_current_tts(question, choices):
@@ -199,6 +199,43 @@ def test_setup_keyboard_interrupt_gracefully_handled(tmp_path, monkeypatch):
     monkeypatch.setattr("hermes_cli.main.select_provider_and_model", fake_select)
 
     setup_model_provider(config)
+
+
+def test_local_ollama_quick_setup_saves_custom_endpoint(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    config = load_config()
+
+    monkeypatch.setattr("hermes_cli.setup.prompt_choice", lambda q, c, d=0: 1)
+    monkeypatch.setattr("hermes_cli.setup.prompt_yes_no", lambda *a, **kw: False)
+    monkeypatch.setattr("hermes_cli.setup._ollama_binary", lambda: None)
+
+    chosen = _configure_local_ollama_gemma(config, quick=True)
+
+    assert chosen == "gemma4:26b"
+    assert config["model"]["provider"] == "custom"
+    assert config["model"]["base_url"] == "http://localhost:11434/v1"
+    assert config["model"]["default"] == "gemma4:26b"
+    assert config["custom_providers"][0]["name"] == "Local Ollama"
+
+
+def test_local_ollama_setup_updates_existing_saved_provider(tmp_path, monkeypatch):
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    config = load_config()
+    config["custom_providers"] = [{
+        "name": "Old Ollama",
+        "base_url": "http://localhost:11434/v1",
+        "model": "gemma4",
+    }]
+
+    monkeypatch.setattr("hermes_cli.setup.prompt_choice", lambda q, c, d=0: 2)
+    monkeypatch.setattr("hermes_cli.setup.prompt_yes_no", lambda *a, **kw: False)
+    monkeypatch.setattr("hermes_cli.setup._ollama_binary", lambda: None)
+
+    _configure_local_ollama_gemma(config, quick=True)
+
+    assert len(config["custom_providers"]) == 1
+    assert config["custom_providers"][0]["name"] == "Local Ollama"
+    assert config["custom_providers"][0]["model"] == "gemma4:31b"
 
 
 def test_codex_setup_uses_runtime_access_token_for_live_model_list(tmp_path, monkeypatch):

@@ -112,7 +112,7 @@ def test_get_platform_tools_no_mcp_sentinel_does_not_affect_other_platforms():
 
 
 def test_toolset_has_keys_for_vision_accepts_codex_auth(tmp_path, monkeypatch):
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("MAVIS_HOME", str(tmp_path))
     (tmp_path / "auth.json").write_text(
         '{"active_provider":"openai-codex","providers":{"openai-codex":{"tokens":{"access_token": "codex-...oken","refresh_token": "codex-...oken"}}}}'
     )
@@ -391,11 +391,11 @@ class TestPlatformToolsetConsistency:
             )
 
     def test_gateway_toolset_includes_all_messaging_platforms(self):
-        """hermes-gateway includes list should cover all messaging platforms."""
+        """mavis-gateway includes list should cover all messaging platforms."""
         from hermes_cli.tools_config import PLATFORMS
         from toolsets import TOOLSETS
 
-        gateway_includes = set(TOOLSETS["hermes-gateway"]["includes"])
+        gateway_includes = set(TOOLSETS["mavis-gateway"]["includes"])
         # Exclude non-messaging platforms from the check
         non_messaging = {"cli", "api_server"}
         for platform, meta in PLATFORMS.items():
@@ -404,7 +404,7 @@ class TestPlatformToolsetConsistency:
             ts_name = meta["default_toolset"]
             assert ts_name in gateway_includes, (
                 f"Platform {platform!r} toolset {ts_name!r} missing from "
-                f"hermes-gateway includes"
+                f"mavis-gateway includes"
             )
 
     def test_skills_config_covers_tools_config_platforms(self):

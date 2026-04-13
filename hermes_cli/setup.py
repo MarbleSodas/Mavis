@@ -32,6 +32,13 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
 _DOCS_BASE = "https://github.com/MarbleSodas/Mavis"
+_LOCAL_OLLAMA_BASE_URL = "http://localhost:11434/v1"
+_LOCAL_OLLAMA_NAME = "Local Ollama"
+_GEMMA4_MODEL_OPTIONS = [
+    ("gemma4", "Gemma 4 (recommended balance)"),
+    ("gemma4:26b", "Gemma 4 26B (more capable)"),
+    ("gemma4:31b", "Gemma 4 31B (maximum capability)"),
+]
 
 
 def _model_config_dict(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -49,6 +56,118 @@ def _set_default_model(config: Dict[str, Any], model_name: str) -> None:
     model_cfg = _model_config_dict(config)
     model_cfg["default"] = model_name
     config["model"] = model_cfg
+
+
+def _save_local_ollama_provider(config: Dict[str, Any], model_name: str) -> None:
+    """Persist the local Ollama endpoint as the active model provider."""
+    model_cfg = _model_config_dict(config)
+    model_cfg["provider"] = "custom"
+    model_cfg["base_url"] = _LOCAL_OLLAMA_BASE_URL
+    model_cfg["default"] = model_name
+    model_cfg.pop("api_key", None)
+    model_cfg.pop("api_mode", None)
+    config["model"] = model_cfg
+
+    providers = config.get("custom_providers")
+    if not isinstance(providers, list):
+        providers = []
+
+    updated = False
+    for entry in providers:
+        if isinstance(entry, dict) and entry.get("base_url", "").rstrip("/") == _LOCAL_OLLAMA_BASE_URL.rstrip("/"):
+            entry["name"] = _LOCAL_OLLAMA_NAME
+            entry["model"] = model_name
+            updated = True
+            break
+
+    if not updated:
+        providers.append({
+            "name": _LOCAL_OLLAMA_NAME,
+            "base_url": _LOCAL_OLLAMA_BASE_URL,
+            "model": model_name,
+        })
+
+    config["custom_providers"] = providers
+
+
+def _ollama_binary() -> Optional[str]:
+    return shutil.which("ollama")
+
+
+def _ollama_reachability() -> tuple[bool, str]:
+    """Return whether the local Ollama daemon appears reachable."""
+    ollama = _ollama_binary()
+    if not ollama:
+        return False, "ollama CLI not found"
+
+    try:
+        import subprocess
+        result = subprocess.run(
+            [ollama, "list"],
+            capture_output=True,
+            text=True,
+            timeout=8,
+        )
+    except Exception as exc:
+        return False, str(exc)
+
+    if result.returncode == 0:
+        return True, ""
+
+    details = (result.stderr or result.stdout or "").strip()
+    return False, details or "ollama list failed"
+
+
+def _local_ollama_install_hint() -> str:
+    if sys.platform == "darwin":
+        return "brew install ollama"
+    if sys.platform.startswith("linux"):
+        return "curl -fsSL https://ollama.com/install.sh | sh"
+    return "Install Ollama from https://ollama.com/download"
+
+
+def _configure_local_ollama_gemma(config: Dict[str, Any], *, quick: bool = False) -> str:
+    """Guide the user through the local Ollama + Gemma 4 setup path."""
+    print_header("Local Ollama + Gemma 4")
+    print_info("Mavis defaults to a local Ollama endpoint for the main agent.")
+    print_info(f"Endpoint: {_LOCAL_OLLAMA_BASE_URL}")
+    print()
+
+    labels = [label for _, label in _GEMMA4_MODEL_OPTIONS]
+    model_idx = prompt_choice("Select Gemma 4 model:", labels, 0)
+    model_name = _GEMMA4_MODEL_OPTIONS[model_idx][0]
+    _save_local_ollama_provider(config, model_name)
+
+    ollama = _ollama_binary()
+    if not ollama:
+        print_warning("Ollama is not installed yet.")
+        print_info(f"Install hint: {_local_ollama_install_hint()}")
+        print_info(f"Mavis will still save the local endpoint and model ({model_name}).")
+        return model_name
+
+    reachable, details = _ollama_reachability()
+    if reachable:
+        print_success("Ollama is installed and reachable.")
+    else:
+        print_warning("Ollama is installed but the daemon is not responding yet.")
+        if details:
+            print_info(f"  {details}")
+        print_info("Start it with: ollama serve")
+
+    if quick or prompt_yes_no(f"Pull {model_name} now?", True):
+        try:
+            import subprocess
+            result = subprocess.run([ollama, "pull", model_name], text=True)
+            if result.returncode == 0:
+                print_success(f"Pulled {model_name}")
+            else:
+                print_warning(f"Could not pull {model_name} automatically (exit {result.returncode}).")
+                print_info(f"Run manually: ollama pull {model_name}")
+        except Exception as exc:
+            print_warning(f"Could not run 'ollama pull {model_name}': {exc}")
+            print_info(f"Run manually: ollama pull {model_name}")
+
+    return model_name
 
 
 def _get_credential_pool_strategies(config: Dict[str, Any]) -> Dict[str, str]:
@@ -381,19 +500,19 @@ def is_interactive_stdin() -> bool:
 def print_noninteractive_setup_guidance(reason: str | None = None) -> None:
     """Print guidance for headless/non-interactive setup flows."""
     print()
-    print(color("⚕ Hermes Setup — Non-interactive mode", Colors.CYAN, Colors.BOLD))
+    print(color(f"{APP_NAME} Setup — Non-interactive mode", Colors.CYAN, Colors.BOLD))
     print()
     if reason:
         print_info(reason)
     print_info("The interactive wizard cannot be used here.")
     print()
-    print_info("Configure Hermes using environment variables or config commands:")
-    print_info("  hermes config set model.provider custom")
-    print_info("  hermes config set model.base_url http://localhost:8080/v1")
-    print_info("  hermes config set model.default your-model-name")
+    print_info(f"Configure {APP_NAME} using environment variables or config commands:")
+    print_info(f"  {CLI_NAME} config set model.provider custom")
+    print_info(f"  {CLI_NAME} config set model.base_url http://localhost:8080/v1")
+    print_info(f"  {CLI_NAME} config set model.default your-model-name")
     print()
     print_info("Or set OPENROUTER_API_KEY / OPENAI_API_KEY in your environment.")
-    print_info("Run 'hermes setup' in an interactive terminal to use the full wizard.")
+    print_info(f"Run '{CLI_NAME} setup' in an interactive terminal to use the full wizard.")
     print()
 
 
@@ -615,7 +734,7 @@ def _prompt_api_key(var: dict):
         save_env_value(var["name"], value)
         print_success("  ✓ Saved")
     else:
-        print_warning("  Skipped (configure later with 'hermes setup')")
+        print_warning(f"  Skipped (configure later with '{CLI_NAME} setup')")
 
 
 def _print_setup_summary(config: dict, hermes_home):
@@ -638,7 +757,7 @@ def _print_setup_summary(config: dict, hermes_home):
     if _vision_backends:
         tool_status.append(("Vision (image analysis)", True, None))
     else:
-        tool_status.append(("Vision (image analysis)", False, "run 'hermes setup' to configure"))
+        tool_status.append(("Vision (image analysis)", False, f"run '{CLI_NAME} setup' to configure"))
 
     # Mixture of Agents — requires OpenRouter specifically (calls multiple models)
     if get_env_value("OPENROUTER_API_KEY"):
@@ -694,9 +813,19 @@ def _print_setup_summary(config: dict, hermes_home):
         tool_status.append(("Image Generation", False, "FAL_KEY"))
 
     # TTS — show configured provider
-    tts_provider = config.get("tts", {}).get("provider", "edge")
+    tts_provider = config.get("tts", {}).get("provider", "piper")
     if subscription_features.tts.managed_by_nous:
         tool_status.append(("Text-to-Speech (OpenAI via Nous subscription)", True, None))
+    elif tts_provider == "piper":
+        try:
+            from tools.tts_tool import get_piper_status
+            piper_status = get_piper_status(config.get("tts", {}))
+        except Exception:
+            piper_status = {"available": False}
+        if piper_status.get("available"):
+            tool_status.append(("Text-to-Speech (Piper local)", True, None))
+        else:
+            tool_status.append(("Text-to-Speech (Piper local)", False, f"run '{CLI_NAME} setup'"))
     elif tts_provider == "elevenlabs" and get_env_value("ELEVENLABS_API_KEY"):
         tool_status.append(("Text-to-Speech (ElevenLabs)", True, None))
     elif tts_provider == "openai" and (
@@ -714,9 +843,9 @@ def _print_setup_summary(config: dict, hermes_home):
         if neutts_ok:
             tool_status.append(("Text-to-Speech (NeuTTS local)", True, None))
         else:
-            tool_status.append(("Text-to-Speech (NeuTTS — not installed)", False, "run 'hermes setup tts'"))
+            tool_status.append(("Text-to-Speech (NeuTTS — not installed)", False, f"run '{CLI_NAME} setup tts'"))
     else:
-        tool_status.append(("Text-to-Speech (Edge TTS)", True, None))
+        tool_status.append((f"Text-to-Speech ({tts_provider})", False, f"run '{CLI_NAME} setup tts'"))
 
     if subscription_features.modal.managed_by_nous:
         tool_status.append(("Modal Execution (Nous subscription)", True, None))
@@ -724,7 +853,7 @@ def _print_setup_summary(config: dict, hermes_home):
         if subscription_features.modal.direct_override:
             tool_status.append(("Modal Execution (direct Modal)", True, None))
         else:
-            tool_status.append(("Modal Execution", False, "run 'hermes setup terminal'"))
+            tool_status.append(("Modal Execution", False, f"run '{CLI_NAME} setup terminal'"))
     elif managed_nous_tools_enabled() and subscription_features.nous_auth_present:
         tool_status.append(("Modal Execution (optional via Nous subscription)", True, None))
 
@@ -775,7 +904,7 @@ def _print_setup_summary(config: dict, hermes_home):
     disabled_tools = [(name, var) for name, avail, var in tool_status if not avail]
     if disabled_tools:
         print_warning(
-            "Some tools are disabled. Run 'hermes setup tools' to configure them,"
+            f"Some tools are disabled. Run '{CLI_NAME} setup tools' to configure them,"
         )
         from hermes_constants import display_hermes_home as _dhh
         print_warning(f"or edit {_dhh()}/.env directly to add the missing API keys.")
@@ -815,17 +944,17 @@ def _print_setup_summary(config: dict, hermes_home):
     print()
     print(color("📝 To edit your configuration:", Colors.CYAN, Colors.BOLD))
     print()
-    print(f"   {color('hermes setup', Colors.GREEN)}          Re-run the full wizard")
-    print(f"   {color('hermes setup model', Colors.GREEN)}    Change model/provider")
-    print(f"   {color('hermes setup terminal', Colors.GREEN)} Change terminal backend")
-    print(f"   {color('hermes setup gateway', Colors.GREEN)}  Configure messaging")
-    print(f"   {color('hermes setup tools', Colors.GREEN)}    Configure tool providers")
+    print(f"   {color(f'{CLI_NAME} setup', Colors.GREEN)}          Re-run the full wizard")
+    print(f"   {color(f'{CLI_NAME} setup model', Colors.GREEN)}    Change model/provider")
+    print(f"   {color(f'{CLI_NAME} setup terminal', Colors.GREEN)} Change terminal backend")
+    print(f"   {color(f'{CLI_NAME} setup gateway', Colors.GREEN)}  Configure messaging")
+    print(f"   {color(f'{CLI_NAME} setup tools', Colors.GREEN)}    Configure tool providers")
     print()
-    print(f"   {color('hermes config', Colors.GREEN)}         View current settings")
+    print(f"   {color(f'{CLI_NAME} config', Colors.GREEN)}         View current settings")
     print(
-        f"   {color('hermes config edit', Colors.GREEN)}    Open config in your editor"
+        f"   {color(f'{CLI_NAME} config edit', Colors.GREEN)}    Open config in your editor"
     )
-    print(f"   {color('hermes config set <key> <value>', Colors.GREEN)}")
+    print(f"   {color(f'{CLI_NAME} config set <key> <value>', Colors.GREEN)}")
     print("                          Set a specific value")
     print()
     print("   Or edit the files directly:")
@@ -837,7 +966,7 @@ def _print_setup_summary(config: dict, hermes_home):
     print()
     print(color("🚀 Ready to go!", Colors.CYAN, Colors.BOLD))
     print()
-    print(f"   {color('hermes', Colors.GREEN)}              Start chatting")
+    print(f"   {color(CLI_NAME, Colors.GREEN)}              Start chatting")
     print(f"   {color('hermes gateway', Colors.GREEN)}      Start messaging gateway")
     print(f"   {color('hermes doctor', Colors.GREEN)}       Check for issues")
     print()
@@ -924,7 +1053,7 @@ def setup_model_provider(config: dict, *, quick: bool = False):
     except Exception as exc:
         logger.debug("select_provider_and_model error during setup: %s", exc)
         print_warning(f"Provider setup encountered an error: {exc}")
-        print_info("You can try again later with: hermes model")
+        print_info(f"You can try again later with: {CLI_NAME} model")
 
     # Re-sync the wizard's config dict from what cmd_model saved to disk.
     # This is critical: cmd_model writes to disk via its own load/save cycle,
@@ -1103,7 +1232,7 @@ def setup_model_provider(config: dict, *, quick: bool = False):
             else:
                 print_info("Skipped — vision won't be available")
         else:
-            print_info("Skipped — add later with 'hermes setup' or configure AUXILIARY_VISION_* settings")
+            print_info(f"Skipped — add later with '{CLI_NAME} setup' or configure AUXILIARY_VISION_* settings")
 
 
     if selected_provider == "nous" and nous_subscription_selected:
@@ -1184,10 +1313,11 @@ def _install_neutts_deps() -> bool:
 def _setup_tts_provider(config: dict):
     """Interactive TTS provider selection with install flow for NeuTTS."""
     tts_config = config.get("tts", {})
-    current_provider = tts_config.get("provider", "edge")
+    current_provider = tts_config.get("provider", "piper")
     subscription_features = get_nous_subscription_features(config)
 
     provider_labels = {
+        "piper": "Piper",
         "edge": "Edge TTS",
         "elevenlabs": "ElevenLabs",
         "openai": "OpenAI TTS",
@@ -1208,6 +1338,7 @@ def _setup_tts_provider(config: dict):
         providers.append("nous-openai")
     choices.extend(
         [
+            "Piper (local on-device, recommended for Mavis voice mode)",
             "Edge TTS (free, cloud-based, no setup needed)",
             "ElevenLabs (premium quality, needs API key)",
             "OpenAI TTS (good quality, needs API key)",
@@ -1215,7 +1346,7 @@ def _setup_tts_provider(config: dict):
             "NeuTTS (local on-device, free, ~300MB model download)",
         ]
     )
-    providers.extend(["edge", "elevenlabs", "openai", "minimax", "neutts"])
+    providers.extend(["piper", "edge", "elevenlabs", "openai", "minimax", "neutts"])
     choices.append(f"Keep current ({current_label})")
     keep_current_idx = len(choices) - 1
     idx = prompt_choice("Select TTS provider:", choices, keep_current_idx)
@@ -1256,6 +1387,12 @@ def _setup_tts_provider(config: dict):
             else:
                 print_info("Skipping install. Set tts.provider to 'neutts' after installing manually.")
                 selected = "edge"
+    elif selected == "piper":
+        piper_cfg = config.setdefault("tts", {}).setdefault("piper", {})
+        if not piper_cfg.get("voice"):
+            piper_cfg["voice"] = "en_US-lessac-medium"
+        print_info("Piper selected for fully local spoken replies.")
+        print_info("If your voice assets are not downloaded yet, rerun `mavis setup` after installing them.")
 
     elif selected == "elevenlabs":
         existing = get_env_value("ELEVENLABS_API_KEY")
@@ -1676,7 +1813,7 @@ def _apply_default_agent_settings(config: dict):
     print_info("  Tool progress: all")
     print_info("  Compression threshold: 0.50")
     print_info("  Session reset: inactivity (1440 min) + daily (4:00)")
-    print_info("  Run `hermes setup agent` later to customize.")
+    print_info(f"  Run `{CLI_NAME} setup agent` later to customize.")
 
 
 def setup_agent_settings(config: dict):
@@ -2221,7 +2358,7 @@ def _setup_webhooks():
     print_info("   Route configuration guide:")
     print_info("   https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks/#configuring-routes")
     print()
-    print_info("   Open config in your editor:  hermes config edit")
+    print_info(f"   Open config in your editor:  {CLI_NAME} config edit")
 
 
 # Platform registry for the gateway checklist
@@ -2259,7 +2396,7 @@ def setup_gateway(config: dict):
     selected = prompt_checklist("Select platforms to configure:", items, pre_selected)
 
     if not selected:
-        print_info("No platforms selected. Run 'hermes setup gateway' later to configure.")
+        print_info(f"No platforms selected. Run '{CLI_NAME} setup gateway' later to configure.")
         return
 
     for idx in selected:
@@ -2303,7 +2440,7 @@ def setup_gateway(config: dict):
             print_info("   Set one later with /set-home in your chat, or:")
             for plat in missing_home:
                 print_info(
-                    f"     hermes config set {plat.upper()}_HOME_CHANNEL <channel_id>"
+                    f"     {CLI_NAME} config set {plat.upper()}_HOME_CHANNEL <channel_id>"
                 )
 
         # Offer to install the gateway as a system service
@@ -2634,12 +2771,12 @@ def run_setup_wizard(args):
     """Run the interactive setup wizard.
 
     Supports full, quick, and section-specific setup:
-      hermes setup           — full or quick (auto-detected)
-      hermes setup model     — just model/provider
-      hermes setup terminal  — just terminal backend
-      hermes setup gateway   — just messaging platforms
-      hermes setup tools     — just tool configuration
-      hermes setup agent     — just agent settings
+      mavis setup           — full or quick (auto-detected)
+      mavis setup model     — just model/provider
+      mavis setup terminal  — just terminal backend
+      mavis setup gateway   — just messaging platforms
+      mavis setup tools     — just tool configuration
+      mavis setup agent     — just agent settings
     """
     from hermes_cli.config import is_managed, managed_error
     if is_managed():
@@ -2673,7 +2810,7 @@ def run_setup_wizard(args):
                         Colors.MAGENTA,
                     )
                 )
-                print(color(f"│     ⚕ Hermes Setup — {label:<34s} │", Colors.MAGENTA))
+                print(color(f"│      {APP_NAME} Setup — {label:<33s} │", Colors.MAGENTA))
                 print(
                     color(
                         "└─────────────────────────────────────────────────────────┘",
@@ -2709,7 +2846,7 @@ def run_setup_wizard(args):
     )
     print(
         color(
-            "│             ⚕ Hermes Agent Setup Wizard                │", Colors.MAGENTA
+            f"│{f'{APP_NAME} Setup Wizard':^57}│", Colors.MAGENTA
         )
     )
     print(
@@ -2720,7 +2857,7 @@ def run_setup_wizard(args):
     )
     print(
         color(
-            "│  Let's configure your Hermes Agent installation.       │", Colors.MAGENTA
+            f"│  Let's configure your {APP_NAME} installation.           │", Colors.MAGENTA
         )
     )
     print(
@@ -2770,10 +2907,10 @@ def run_setup_wizard(args):
             pass
         elif choice in (2, 8):
             # Separator — treat as exit
-            print_info("Exiting. Run 'hermes setup' again when ready.")
+            print_info(f"Exiting. Run '{CLI_NAME} setup' again when ready.")
             return
         elif choice == 9:
-            print_info("Exiting. Run 'hermes setup' again when ready.")
+            print_info(f"Exiting. Run '{CLI_NAME} setup' again when ready.")
             return
         elif 3 <= choice <= 7:
             # Individual section — map by key, not by position.
@@ -2812,7 +2949,7 @@ def run_setup_wizard(args):
     print_info(f"Data folder:  {hermes_home}")
     print_info(f"Install dir:  {PROJECT_ROOT}")
     print()
-    print_info("You can edit these files directly or use 'hermes config edit'")
+    print_info(f"You can edit these files directly or use '{CLI_NAME} config edit'")
 
     if migration_ran:
         print()
@@ -2873,6 +3010,7 @@ def _run_voice_readiness_check(config: dict) -> bool:
     try:
         from faster_whisper import WhisperModel
         from tools.voice_mode import AudioRecorder, check_voice_requirements
+        from tools.tts_tool import get_piper_status
     except Exception as exc:
         voice_cfg["ready"] = False
         print_warning(
@@ -2913,7 +3051,7 @@ def _run_voice_readiness_check(config: dict) -> bool:
 
     stt_model = (
         config.get("stt", {}).get("local", {}).get("model")
-        or "base"
+        or "small"
     )
     try:
         WhisperModel(stt_model, device="auto", compute_type="auto")
@@ -2922,28 +3060,64 @@ def _run_voice_readiness_check(config: dict) -> bool:
         checks_ok = False
         print_warning(f"Local STT validation failed for model '{stt_model}': {exc}")
 
-    tts_provider = config.get("tts", {}).get("provider", "edge")
-    if tts_provider == "edge":
+    tts_provider = config.get("tts", {}).get("provider", "piper")
+    if tts_provider == "piper":
+        piper_status = get_piper_status(config.get("tts", {}))
+        if piper_status["binary"]:
+            print_success(f"Piper runtime found at {piper_status['binary']}")
+        else:
+            checks_ok = False
+            print_warning("Piper runtime is missing. Install the local Piper CLI before using spoken replies.")
+
+        if piper_status["model_path"]:
+            print_success(f"Piper voice assets ready: {piper_status['model_path']}")
+        else:
+            checks_ok = False
+            voice_name = config.get("tts", {}).get("piper", {}).get("voice", "en_US-lessac-medium")
+            print_warning(
+                f"Piper voice assets for '{voice_name}' were not found. "
+                "Set tts.piper.model_path/config_path or download the voice locally."
+            )
+    else:
+        checks_ok = False
+        print_warning(
+            f"Voice readiness expects a local TTS provider, but tts.provider is set to '{tts_provider}'."
+        )
+
+    model_cfg = _model_config_dict(config)
+    local_model = model_cfg.get("default") or "gemma4"
+    ollama = _ollama_binary()
+    if ollama:
+        print_success(f"Ollama runtime found at {ollama}")
+        reachable, details = _ollama_reachability()
+        if reachable:
+            print_success("Ollama daemon is reachable.")
+        else:
+            checks_ok = False
+            print_warning("Ollama daemon is not reachable.")
+            if details:
+                print_info(f"  {details}")
+
         try:
-            import edge_tts  # noqa: F401
-            print_success("Edge TTS is installed for spoken replies.")
+            import subprocess
+            show_result = subprocess.run(
+                [ollama, "show", local_model],
+                capture_output=True,
+                text=True,
+                timeout=8,
+            )
+            if show_result.returncode == 0:
+                print_success(f"Local Gemma model '{local_model}' is installed.")
+            else:
+                checks_ok = False
+                print_warning(f"Local Gemma model '{local_model}' is not installed yet.")
+                print_info(f"  Run: ollama pull {local_model}")
         except Exception as exc:
             checks_ok = False
-            print_warning(f"Edge TTS is not available: {exc}")
-    elif tts_provider == "openai":
-        if get_env_value("VOICE_TOOLS_OPENAI_KEY"):
-            print_success("OpenAI TTS key detected.")
-        else:
-            checks_ok = False
-            print_warning("OpenAI TTS is configured but VOICE_TOOLS_OPENAI_KEY is missing.")
-    elif tts_provider == "elevenlabs":
-        if get_env_value("ELEVENLABS_API_KEY"):
-            print_success("ElevenLabs key detected.")
-        else:
-            checks_ok = False
-            print_warning("ElevenLabs TTS is configured but ELEVENLABS_API_KEY is missing.")
+            print_warning(f"Could not verify local Ollama model '{local_model}': {exc}")
     else:
-        print_info(f"TTS provider configured: {tts_provider}")
+        checks_ok = False
+        print_warning("Ollama runtime is missing. Install it before using the local default model path.")
 
     voice_cfg["ready"] = checks_ok
     if checks_ok:
@@ -2961,12 +3135,12 @@ def _run_voice_readiness_check(config: dict) -> bool:
 def _run_first_time_quick_setup(config: dict, hermes_home, is_existing: bool):
     """Streamlined first-time setup: provider + model only.
 
-    Applies sensible defaults for built-in voice (local STT + Edge TTS),
+    Applies sensible defaults for built-in voice (local STT + Piper TTS),
     terminal (local), agent settings, and tools — the user can customize
     later via ``mavis setup <section>``.
     """
-    # Step 1: Model & Provider (essential — skips rotation/vision/TTS)
-    setup_model_provider(config, quick=True)
+    # Step 1: Default to the local Ollama + Gemma 4 path.
+    _configure_local_ollama_gemma(config, quick=True)
 
     # Step 2: Apply defaults for everything else
     _apply_default_agent_settings(config)
@@ -2980,7 +3154,7 @@ def _run_first_time_quick_setup(config: dict, hermes_home, is_existing: bool):
         "Connect a messaging platform? (Telegram, Discord, etc.)",
         [
             "Set up messaging now (recommended)",
-            "Skip — set up later with 'hermes setup gateway'",
+            f"Skip — set up later with '{CLI_NAME} setup gateway'",
         ],
         0,
     )
@@ -3038,7 +3212,7 @@ def _run_quick_setup(config: dict, hermes_home):
     if not has_anything_missing:
         print_success("Everything is configured! Nothing to do.")
         print()
-        print_info("Run 'hermes setup' and choose 'Full Setup' to reconfigure,")
+        print_info(f"Run '{CLI_NAME} setup' and choose 'Full Setup' to reconfigure,")
         print_info("or pick a specific section from the menu.")
         return
 
@@ -3100,8 +3274,8 @@ def _run_quick_setup(config: dict, hermes_home):
     if missing_messaging:
         print()
         print_header("Messaging Platforms")
-        print_info("Connect Hermes to messaging apps to chat from anywhere.")
-        print_info("You can configure these later with 'hermes setup gateway'.")
+        print_info(f"Connect {APP_NAME} to messaging apps to chat from anywhere.")
+        print_info(f"You can configure these later with '{CLI_NAME} setup gateway'.")
 
         # Group by platform (preserving order)
         platform_order = []

@@ -103,8 +103,8 @@ COMMAND_REGISTRY: list[CommandDef] = [
                subcommands=("none", "low", "minimal", "medium", "high", "xhigh", "show", "hide", "on", "off")),
     CommandDef("skin", "Show or change the display skin/theme", "Configuration",
                cli_only=True, args_hint="[name]"),
-    CommandDef("voice", "Toggle voice mode", "Configuration",
-               args_hint="[on|off|tts|status]", subcommands=("on", "off", "tts", "status")),
+    CommandDef("voice", "Manage voice mode", "Configuration",
+               args_hint="[on|ptt|off|tts|status]", subcommands=("on", "ptt", "off", "tts", "status")),
 
     # Tools & Skills
     CommandDef("tools", "Manage tools: /tools [list|disable|enable] [name...]", "Tools & Skills",

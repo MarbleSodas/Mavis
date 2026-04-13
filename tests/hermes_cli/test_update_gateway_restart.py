@@ -47,18 +47,18 @@ def _make_run_side_effect(
         if "rev-list" in joined:
             return subprocess.CompletedProcess(cmd, 0, stdout=f"{commit_count}\n", stderr="")
 
-        # systemctl list-units hermes-gateway* — discover all gateway services
+        # systemctl list-units mavis-gateway* — discover all gateway services
         if "systemctl" in joined and "list-units" in joined:
             if "--user" in joined and systemd_active:
                 return subprocess.CompletedProcess(
                     cmd, 0,
-                    stdout="hermes-gateway.service loaded active running Hermes Gateway\n",
+                    stdout="mavis-gateway.service loaded active running Hermes Gateway\n",
                     stderr="",
                 )
             elif "--user" not in joined and system_service_active:
                 return subprocess.CompletedProcess(
                     cmd, 0,
-                    stdout="hermes-gateway.service loaded active running Hermes Gateway\n",
+                    stdout="mavis-gateway.service loaded active running Hermes Gateway\n",
                     stderr="",
                 )
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
@@ -82,10 +82,10 @@ def _make_run_side_effect(
                 return subprocess.CompletedProcess(cmd, system_restart_rc, stdout="", stderr=stderr)
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
-        # launchctl list ai.hermes.gateway
+        # launchctl list ai.mavis.gateway
         if "launchctl" in joined and "list" in joined:
             if launchctl_loaded:
-                return subprocess.CompletedProcess(cmd, 0, stdout="PID\tStatus\tLabel\n123\t0\tai.hermes.gateway\n", stderr="")
+                return subprocess.CompletedProcess(cmd, 0, stdout="PID\tStatus\tLabel\n123\t0\tai.mavis.gateway\n", stderr="")
             return subprocess.CompletedProcess(cmd, 113, stdout="", stderr="Could not find service")
 
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
@@ -134,7 +134,7 @@ class TestLaunchdPlistPath:
         assert "<key>EnvironmentVariables</key>" in plist
         assert "<key>PATH</key>" in plist
         assert "<key>VIRTUAL_ENV</key>" in plist
-        assert "<key>HERMES_HOME</key>" in plist
+        assert "<key>MAVIS_HOME</key>" in plist
 
     def test_plist_path_includes_venv_bin(self):
         plist = gateway_cli.generate_launchd_plist()
@@ -201,7 +201,7 @@ class TestLaunchdPlistRefresh:
     refresh_systemd_unit_if_needed)."""
 
     def test_refresh_rewrites_stale_plist(self, tmp_path, monkeypatch):
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text("<plist>old content</plist>")
 
         monkeypatch.setattr(gateway_cli, "get_launchd_plist_path", lambda: plist_path)
@@ -223,7 +223,7 @@ class TestLaunchdPlistRefresh:
         assert any("bootstrap" in str(c) for c in calls)
 
     def test_refresh_skips_when_current(self, tmp_path, monkeypatch):
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         monkeypatch.setattr(gateway_cli, "get_launchd_plist_path", lambda: plist_path)
 
         # Write the current expected content
@@ -249,7 +249,7 @@ class TestLaunchdPlistRefresh:
 
     def test_launchd_start_calls_refresh(self, tmp_path, monkeypatch):
         """launchd_start refreshes the plist before starting."""
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text("<plist>old</plist>")
         monkeypatch.setattr(gateway_cli, "get_launchd_plist_path", lambda: plist_path)
 
@@ -269,7 +269,7 @@ class TestLaunchdPlistRefresh:
 
     def test_launchd_start_recreates_missing_plist_and_loads_service(self, tmp_path, monkeypatch):
         """launchd_start self-heals when the plist file is missing entirely."""
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         assert not plist_path.exists()
 
         monkeypatch.setattr(gateway_cli, "get_launchd_plist_path", lambda: plist_path)
@@ -304,9 +304,9 @@ class TestCmdUpdateLaunchdRestart:
         self, mock_run, _mock_which, mock_args, capsys, tmp_path, monkeypatch,
     ):
         """When launchd is running the gateway, update should print
-        'auto-restart via launchd' instead of 'Restart it with: hermes gateway run'."""
+        'auto-restart via launchd' instead of 'Restart it with: mavis gateway run'."""
         # Create a fake launchd plist so is_macos + plist.exists() passes
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text("<plist/>")
 
         monkeypatch.setattr(
@@ -328,7 +328,7 @@ class TestCmdUpdateLaunchdRestart:
 
         captured = capsys.readouterr().out
         assert "Restarted" in captured
-        assert "Restart manually: hermes gateway run" not in captured
+        assert "Restart manually: mavis gateway run" not in captured
         mock_launchd_restart.assert_called_once_with()
 
     @patch("shutil.which", return_value=None)
@@ -340,7 +340,7 @@ class TestCmdUpdateLaunchdRestart:
         monkeypatch.setattr(
             gateway_cli, "is_macos", lambda: True,
         )
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         # plist does NOT exist — no launchd service
         monkeypatch.setattr(
             gateway_cli, "get_launchd_plist_path", lambda: plist_path,
@@ -357,7 +357,7 @@ class TestCmdUpdateLaunchdRestart:
             cmd_update(mock_args)
 
         captured = capsys.readouterr().out
-        assert "Restart manually: hermes gateway run" in captured
+        assert "Restart manually: mavis gateway run" in captured
 
     @patch("shutil.which", return_value=None)
     @patch("subprocess.run")
@@ -378,7 +378,7 @@ class TestCmdUpdateLaunchdRestart:
             cmd_update(mock_args)
 
         captured = capsys.readouterr().out
-        assert "Restarted hermes-gateway" in captured
+        assert "Restarted mavis-gateway" in captured
         # Verify systemctl restart was called
         restart_calls = [
             c for c in mock_run.call_args_list
@@ -438,7 +438,7 @@ class TestCmdUpdateSystemService:
             cmd_update(mock_args)
 
         captured = capsys.readouterr().out
-        assert "Restarted hermes-gateway" in captured
+        assert "Restarted mavis-gateway" in captured
         # Verify systemctl restart (no --user) was called
         restart_calls = [
             c for c in mock_run.call_args_list
@@ -490,7 +490,7 @@ class TestCmdUpdateSystemService:
 
         captured = capsys.readouterr().out
         # Both scopes are discovered and restarted
-        assert "Restarted hermes-gateway" in captured
+        assert "Restarted mavis-gateway" in captured
 
 
 # ---------------------------------------------------------------------------
@@ -510,7 +510,7 @@ class TestServicePidExclusion:
         self, mock_run, _mock_which, mock_args, capsys, monkeypatch, tmp_path,
     ):
         """After launchd restart, the sweep must exclude the service PID."""
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text("<plist/>")
 
         monkeypatch.setattr(gateway_cli, "is_macos", lambda: True)
@@ -581,7 +581,7 @@ class TestServicePidExclusion:
             cmd_update(mock_args)
 
         captured = capsys.readouterr().out
-        assert "Restarted hermes-gateway" in captured
+        assert "Restarted mavis-gateway" in captured
         # Service PID must not be killed
         kill_calls = [
             c for c in mock_kill.call_args_list
@@ -597,7 +597,7 @@ class TestServicePidExclusion:
     ):
         """When both a service PID and a manual PID exist, only the manual one
         is killed."""
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text("<plist/>")
 
         monkeypatch.setattr(gateway_cli, "is_macos", lambda: True)
@@ -647,7 +647,7 @@ class TestGetServicePids:
             if "list-units" in joined:
                 return subprocess.CompletedProcess(
                     cmd, 0,
-                    stdout="hermes-gateway.service loaded active running Hermes Gateway\n",
+                    stdout="mavis-gateway.service loaded active running Hermes Gateway\n",
                     stderr="",
                 )
             if "show" in joined and "MainPID" in joined:
@@ -662,14 +662,14 @@ class TestGetServicePids:
     def test_returns_launchd_pid(self, monkeypatch):
         monkeypatch.setattr(gateway_cli, "is_linux", lambda: False)
         monkeypatch.setattr(gateway_cli, "is_macos", lambda: True)
-        monkeypatch.setattr(gateway_cli, "get_launchd_label", lambda: "ai.hermes.gateway")
+        monkeypatch.setattr(gateway_cli, "get_launchd_label", lambda: "ai.mavis.gateway")
 
         def fake_run(cmd, **kwargs):
             joined = " ".join(str(c) for c in cmd)
             if "launchctl" in joined and "list" in joined:
                 return subprocess.CompletedProcess(
                     cmd, 0,
-                    stdout="PID\tStatus\tLabel\n67890\t0\tai.hermes.gateway\n",
+                    stdout="PID\tStatus\tLabel\n67890\t0\tai.mavis.gateway\n",
                     stderr="",
                 )
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
@@ -696,7 +696,7 @@ class TestGetServicePids:
             if "list-units" in joined:
                 return subprocess.CompletedProcess(
                     cmd, 0,
-                    stdout="hermes-gateway.service loaded inactive dead Hermes Gateway\n",
+                    stdout="mavis-gateway.service loaded inactive dead Hermes Gateway\n",
                     stderr="",
                 )
             if "show" in joined and "MainPID" in joined:

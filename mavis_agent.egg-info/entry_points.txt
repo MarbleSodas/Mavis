@@ -1,0 +1,4 @@
+[console_scripts]
+mavis = hermes_cli.main:main
+mavis-acp = acp_adapter.entry:main
+mavis-agent = run_agent:main

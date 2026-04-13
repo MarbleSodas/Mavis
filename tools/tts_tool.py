@@ -2,8 +2,9 @@
 """
 Text-to-Speech Tool Module
 
-Supports five TTS providers:
-- Edge TTS (default, free, no API key): Microsoft Edge neural voices
+Supports six TTS providers:
+- Piper (default, local): On-device TTS via the Piper CLI
+- Edge TTS: Microsoft Edge neural voices
 - ElevenLabs (premium): High-quality voices, needs ELEVENLABS_API_KEY
 - OpenAI TTS: Good quality, needs OPENAI_API_KEY
 - MiniMax TTS: High-quality with voice cloning, needs MINIMAX_API_KEY
@@ -71,7 +72,8 @@ def _import_sounddevice():
 # ===========================================================================
 # Defaults
 # ===========================================================================
-DEFAULT_PROVIDER = "edge"
+DEFAULT_PROVIDER = "piper"
+DEFAULT_PIPER_VOICE = "en_US-lessac-medium"
 DEFAULT_EDGE_VOICE = "en-US-AriaNeural"
 DEFAULT_ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"  # Adam
 DEFAULT_ELEVENLABS_MODEL_ID = "eleven_multilingual_v2"
@@ -118,6 +120,73 @@ def _get_provider(tts_config: Dict[str, Any]) -> str:
     return (tts_config.get("provider") or DEFAULT_PROVIDER).lower().strip()
 
 
+def _get_piper_cache_dirs() -> list[Path]:
+    """Return likely voice asset directories for Piper models."""
+    home = Path.home()
+    return [
+        home / ".cache" / "piper",
+        home / ".cache" / "piper" / "voices",
+        home / ".local" / "share" / "piper",
+        home / ".local" / "share" / "piper" / "voices",
+        home / "piper",
+    ]
+
+
+def _piper_binary() -> Optional[str]:
+    return shutil.which("piper")
+
+
+def _default_piper_model_dir() -> Path:
+    from hermes_constants import get_hermes_home
+    return get_hermes_home() / "voices" / "piper"
+
+
+def _resolve_piper_asset_path(path_value: str) -> Optional[Path]:
+    raw = (path_value or "").strip()
+    if not raw:
+        return None
+    path = Path(raw).expanduser()
+    return path if path.exists() else None
+
+
+def _resolve_piper_paths(tts_config: Dict[str, Any]) -> tuple[Optional[Path], Optional[Path]]:
+    """Resolve Piper voice asset paths from config and common cache locations."""
+    piper_cfg = tts_config.get("piper", {})
+    explicit_model = _resolve_piper_asset_path(piper_cfg.get("model_path", ""))
+    explicit_config = _resolve_piper_asset_path(piper_cfg.get("config_path", ""))
+    if explicit_model:
+        if explicit_config:
+            return explicit_model, explicit_config
+        sidecar = Path(str(explicit_model) + ".json")
+        if sidecar.exists():
+            return explicit_model, sidecar
+        alt_sidecar = explicit_model.with_suffix(explicit_model.suffix + ".json")
+        if alt_sidecar.exists():
+            return explicit_model, alt_sidecar
+        return explicit_model, None
+
+    voice = (piper_cfg.get("voice") or DEFAULT_PIPER_VOICE).strip()
+    if not voice:
+        return None, None
+
+    candidates = []
+    if voice.endswith(".onnx"):
+        candidates.append(voice)
+    else:
+        candidates.extend([voice, f"{voice}.onnx"])
+
+    search_roots = [_default_piper_model_dir(), *_get_piper_cache_dirs()]
+    for root in search_roots:
+        for candidate in candidates:
+            model_path = root / candidate
+            if model_path.exists():
+                config_path = Path(str(model_path) + ".json")
+                if not config_path.exists():
+                    config_path = model_path.with_suffix(model_path.suffix + ".json")
+                return model_path, config_path if config_path.exists() else None
+    return None, None
+
+
 # ===========================================================================
 # ffmpeg Opus conversion (Edge TTS MP3 -> OGG Opus for Telegram)
 # ===========================================================================
@@ -159,6 +228,86 @@ def _convert_to_opus(mp3_path: str) -> Optional[str]:
     except Exception as e:
         logger.warning("ffmpeg OGG conversion failed: %s", e, exc_info=True)
     return None
+
+
+# ===========================================================================
+# Provider: Piper (local)
+# ===========================================================================
+def _generate_piper_tts(text: str, output_path: str, tts_config: Dict[str, Any]) -> str:
+    """Generate audio using the local Piper CLI."""
+    binary = _piper_binary()
+    if not binary:
+        raise FileNotFoundError(
+            "piper CLI not found. Install the Piper runtime and make sure 'piper' is in PATH."
+        )
+
+    model_path, config_path = _resolve_piper_paths(tts_config)
+    if model_path is None:
+        piper_cfg = tts_config.get("piper", {})
+        voice_name = piper_cfg.get("voice") or DEFAULT_PIPER_VOICE
+        raise FileNotFoundError(
+            f"Piper voice assets not found for '{voice_name}'. "
+            "Set tts.piper.model_path/config_path or download the voice locally."
+        )
+
+    piper_cfg = tts_config.get("piper", {})
+    wav_output = output_path
+    needs_conversion = not output_path.lower().endswith(".wav")
+    if needs_conversion:
+        wav_output = output_path.rsplit(".", 1)[0] + ".wav"
+
+    command = [binary, "--model", str(model_path), "--output_file", wav_output]
+    if config_path:
+        command.extend(["--config", str(config_path)])
+
+    speaker = str(piper_cfg.get("speaker", "")).strip()
+    if speaker:
+        command.extend(["--speaker", speaker])
+
+    length_scale = piper_cfg.get("length_scale")
+    if length_scale not in (None, ""):
+        command.extend(["--length_scale", str(length_scale)])
+
+    noise_scale = piper_cfg.get("noise_scale")
+    if noise_scale not in (None, ""):
+        command.extend(["--noise_scale", str(noise_scale)])
+
+    result = subprocess.run(
+        command,
+        input=text.encode("utf-8"),
+        capture_output=True,
+        timeout=90,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="ignore").strip()
+        raise RuntimeError(stderr or f"Piper exited with status {result.returncode}")
+
+    if not os.path.exists(wav_output) or os.path.getsize(wav_output) == 0:
+        raise RuntimeError("Piper completed without creating audio output")
+
+    if not needs_conversion:
+        return wav_output
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise FileNotFoundError(
+            "ffmpeg is required to convert Piper WAV output to MP3/OGG"
+        )
+
+    conv = subprocess.run(
+        [ffmpeg, "-i", wav_output, "-y", "-loglevel", "error", output_path],
+        capture_output=True,
+        timeout=30,
+    )
+    if conv.returncode != 0:
+        stderr = conv.stderr.decode("utf-8", errors="ignore").strip()
+        raise RuntimeError(stderr or "ffmpeg failed to convert Piper output")
+
+    try:
+        os.unlink(wav_output)
+    except OSError:
+        pass
+    return output_path
 
 
 # ===========================================================================
@@ -503,7 +652,11 @@ def text_to_speech_tool(
 
     try:
         # Generate audio with the configured provider
-        if provider == "elevenlabs":
+        if provider == "piper":
+            logger.info("Generating speech with Piper...")
+            _generate_piper_tts(text, file_str, tts_config)
+
+        elif provider == "elevenlabs":
             try:
                 _import_elevenlabs()
             except ImportError:
@@ -578,7 +731,7 @@ def text_to_speech_tool(
         # Try Opus conversion for Telegram compatibility
         # Edge TTS outputs MP3, NeuTTS outputs WAV — both need ffmpeg conversion
         voice_compatible = False
-        if provider in ("edge", "neutts", "minimax") and not file_str.endswith(".ogg"):
+        if provider in ("edge", "neutts", "minimax", "piper") and not file_str.endswith(".ogg"):
             opus_path = _convert_to_opus(file_str)
             if opus_path:
                 file_str = opus_path
@@ -623,38 +776,78 @@ def text_to_speech_tool(
 # ===========================================================================
 # Requirements check
 # ===========================================================================
-def check_tts_requirements() -> bool:
+def check_tts_requirements(
+    provider: Optional[str] = None,
+    *,
+    local_only: bool = False,
+    tts_config: Optional[Dict[str, Any]] = None,
+) -> bool:
     """
-    Check if at least one TTS provider is available.
+    Check whether the configured or requested TTS provider is available.
 
-    Edge TTS needs no API key and is the default, so if the package
-    is installed, TTS is available.
+    When ``local_only`` is True, only on-device providers count.
 
     Returns:
-        bool: True if at least one provider can work.
+        bool: True if the requested constraints can be satisfied.
     """
-    try:
-        _import_edge_tts()
+    cfg = tts_config or _load_tts_config()
+    requested = (provider or _get_provider(cfg) or DEFAULT_PROVIDER).lower().strip()
+
+    def _provider_available(name: str) -> bool:
+        if name == "piper":
+            model_path, _ = _resolve_piper_paths(cfg)
+            return _piper_binary() is not None and model_path is not None
+        if name == "neutts":
+            return _check_neutts_available()
+        if name == "edge":
+            try:
+                _import_edge_tts()
+                return True
+            except ImportError:
+                return False
+        if name == "elevenlabs":
+            try:
+                _import_elevenlabs()
+                return bool(os.getenv("ELEVENLABS_API_KEY"))
+            except ImportError:
+                return False
+        if name == "openai":
+            try:
+                _import_openai_client()
+                return _has_openai_audio_backend()
+            except ImportError:
+                return False
+        if name == "minimax":
+            return bool(os.getenv("MINIMAX_API_KEY"))
+        return False
+
+    if provider:
+        if local_only and requested not in {"piper", "neutts"}:
+            return False
+        return _provider_available(requested)
+
+    if local_only:
+        return _provider_available(requested) and requested in {"piper", "neutts"}
+
+    if _provider_available(requested):
         return True
-    except ImportError:
-        pass
-    try:
-        _import_elevenlabs()
-        if os.getenv("ELEVENLABS_API_KEY"):
+
+    for candidate in ("piper", "edge", "elevenlabs", "openai", "minimax", "neutts"):
+        if _provider_available(candidate):
             return True
-    except ImportError:
-        pass
-    try:
-        _import_openai_client()
-        if _has_openai_audio_backend():
-            return True
-    except ImportError:
-        pass
-    if os.getenv("MINIMAX_API_KEY"):
-        return True
-    if _check_neutts_available():
-        return True
     return False
+
+
+def get_piper_status(tts_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Return detailed Piper readiness information for setup and voice checks."""
+    cfg = tts_config or _load_tts_config()
+    model_path, config_path = _resolve_piper_paths(cfg)
+    return {
+        "binary": _piper_binary(),
+        "model_path": str(model_path) if model_path else "",
+        "config_path": str(config_path) if config_path else "",
+        "available": _piper_binary() is not None and model_path is not None,
+    }
 
 
 def _resolve_openai_audio_client_config() -> tuple[str, str]:
@@ -930,6 +1123,12 @@ if __name__ == "__main__":
             return False
 
     print("\nProvider availability:")
+    piper_status = get_piper_status()
+    print(f"  Piper:      {'ready' if piper_status['available'] else 'not ready'}")
+    if piper_status["binary"]:
+        print(f"    Binary:   {piper_status['binary']}")
+    if piper_status["model_path"]:
+        print(f"    Voice:    {piper_status['model_path']}")
     print(f"  Edge TTS:   {'installed' if _check(_import_edge_tts, 'edge') else 'not installed (pip install edge-tts)'}")
     print(f"  ElevenLabs: {'installed' if _check(_import_elevenlabs, 'el') else 'not installed (pip install elevenlabs)'}")
     print(f"    API Key:  {'set' if os.getenv('ELEVENLABS_API_KEY') else 'not set'}")

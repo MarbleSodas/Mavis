@@ -49,12 +49,12 @@ class TestHandleUpdateCommand:
     async def test_managed_install_returns_package_manager_guidance(self, monkeypatch):
         runner = _make_runner()
         event = _make_event()
-        monkeypatch.setenv("HERMES_MANAGED", "homebrew")
+        monkeypatch.setenv("MAVIS_MANAGED", "homebrew")
 
         result = await runner._handle_update_command(event)
 
         assert "managed by Homebrew" in result
-        assert "brew upgrade hermes-agent" in result
+        assert "brew upgrade mavis-agent" in result
 
     @pytest.mark.asyncio
     async def test_no_git_directory(self, tmp_path):
@@ -118,7 +118,7 @@ class TestHandleUpdateCommand:
             result = await runner._handle_update_command(event)
 
         assert "Could not locate" in result
-        assert "hermes update" in result
+        assert "mavis update" in result
 
     @pytest.mark.asyncio
     async def test_fallback_to_sys_executable(self, tmp_path):

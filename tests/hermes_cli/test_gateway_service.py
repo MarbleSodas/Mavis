@@ -9,7 +9,7 @@ import hermes_cli.gateway as gateway_cli
 
 class TestSystemdServiceRefresh:
     def test_systemd_install_repairs_outdated_unit_without_force(self, tmp_path, monkeypatch):
-        unit_path = tmp_path / "hermes-gateway.service"
+        unit_path = tmp_path / "mavis-gateway.service"
         unit_path.write_text("old unit\n", encoding="utf-8")
 
         monkeypatch.setattr(gateway_cli, "get_systemd_unit_path", lambda system=False: unit_path)
@@ -32,7 +32,7 @@ class TestSystemdServiceRefresh:
         ]
 
     def test_systemd_start_refreshes_outdated_unit(self, tmp_path, monkeypatch):
-        unit_path = tmp_path / "hermes-gateway.service"
+        unit_path = tmp_path / "mavis-gateway.service"
         unit_path.write_text("old unit\n", encoding="utf-8")
 
         monkeypatch.setattr(gateway_cli, "get_systemd_unit_path", lambda system=False: unit_path)
@@ -55,7 +55,7 @@ class TestSystemdServiceRefresh:
         ]
 
     def test_systemd_restart_refreshes_outdated_unit(self, tmp_path, monkeypatch):
-        unit_path = tmp_path / "hermes-gateway.service"
+        unit_path = tmp_path / "mavis-gateway.service"
         unit_path.write_text("old unit\n", encoding="utf-8")
 
         monkeypatch.setattr(gateway_cli, "get_systemd_unit_path", lambda system=False: unit_path)
@@ -106,7 +106,7 @@ class TestGatewayStopCleanup:
     def test_stop_only_kills_current_profile_by_default(self, tmp_path, monkeypatch):
         """Without --all, stop uses systemd (if available) and does NOT call
         the global kill_gateway_processes()."""
-        unit_path = tmp_path / "hermes-gateway.service"
+        unit_path = tmp_path / "mavis-gateway.service"
         unit_path.write_text("unit\n", encoding="utf-8")
 
         monkeypatch.setattr(gateway_cli, "is_linux", lambda: True)
@@ -131,7 +131,7 @@ class TestGatewayStopCleanup:
 
     def test_stop_all_sweeps_all_gateway_processes(self, tmp_path, monkeypatch):
         """With --all, stop uses systemd AND calls the global kill_gateway_processes()."""
-        unit_path = tmp_path / "hermes-gateway.service"
+        unit_path = tmp_path / "mavis-gateway.service"
         unit_path.write_text("unit\n", encoding="utf-8")
 
         monkeypatch.setattr(gateway_cli, "is_linux", lambda: True)
@@ -156,7 +156,7 @@ class TestGatewayStopCleanup:
 
 class TestLaunchdServiceRecovery:
     def test_launchd_install_repairs_outdated_plist_without_force(self, tmp_path, monkeypatch):
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text("<plist>old content</plist>", encoding="utf-8")
 
         monkeypatch.setattr(gateway_cli, "get_launchd_plist_path", lambda: plist_path)
@@ -180,7 +180,7 @@ class TestLaunchdServiceRecovery:
         ]
 
     def test_launchd_start_reloads_unloaded_job_and_retries(self, tmp_path, monkeypatch):
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text(gateway_cli.generate_launchd_plist(), encoding="utf-8")
         label = gateway_cli.get_launchd_label()
 
@@ -207,7 +207,7 @@ class TestLaunchdServiceRecovery:
 
     def test_launchd_start_reloads_on_kickstart_exit_code_113(self, tmp_path, monkeypatch):
         """Exit code 113 (\"Could not find service\") should also trigger bootstrap recovery."""
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text(gateway_cli.generate_launchd_plist(), encoding="utf-8")
         label = gateway_cli.get_launchd_label()
 
@@ -233,7 +233,7 @@ class TestLaunchdServiceRecovery:
         ]
 
     def test_launchd_status_reports_local_stale_plist_when_unloaded(self, tmp_path, monkeypatch, capsys):
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text("<plist>old content</plist>", encoding="utf-8")
 
         monkeypatch.setattr(gateway_cli, "get_launchd_plist_path", lambda: plist_path)
@@ -314,7 +314,7 @@ class TestGatewaySystemServiceRouting:
         assert calls == [(False, False)]
 
     def test_gateway_restart_does_not_fallback_to_foreground_when_launchd_restart_fails(self, tmp_path, monkeypatch):
-        plist_path = tmp_path / "ai.hermes.gateway.plist"
+        plist_path = tmp_path / "ai.mavis.gateway.plist"
         plist_path.write_text("plist\n", encoding="utf-8")
 
         monkeypatch.setattr(gateway_cli, "is_linux", lambda: False)
@@ -324,7 +324,7 @@ class TestGatewaySystemServiceRouting:
             gateway_cli,
             "launchd_restart",
             lambda: (_ for _ in ()).throw(
-                gateway_cli.subprocess.CalledProcessError(5, ["launchctl", "kickstart", "-k", "gui/501/ai.hermes.gateway"])
+                gateway_cli.subprocess.CalledProcessError(5, ["launchctl", "kickstart", "-k", "gui/501/ai.mavis.gateway"])
             ),
         )
 
@@ -398,12 +398,12 @@ class TestDetectVenvDir:
 
 
 class TestSystemUnitHermesHome:
-    """HERMES_HOME in system units must reference the target user, not root."""
+    """MAVIS_HOME in system units must reference the target user, not root."""
 
     def test_system_unit_uses_target_user_home_not_calling_user(self, monkeypatch):
         # Simulate sudo: Path.home() returns /root, target user is alice
         monkeypatch.setattr(Path, "home", staticmethod(lambda: Path("/root")))
-        monkeypatch.delenv("HERMES_HOME", raising=False)
+        monkeypatch.delenv("MAVIS_HOME", raising=False)
         monkeypatch.setattr(
             gateway_cli, "_system_service_identity",
             lambda run_as_user=None: ("alice", "alice", "/home/alice"),
@@ -415,13 +415,13 @@ class TestSystemUnitHermesHome:
 
         unit = gateway_cli.generate_systemd_unit(system=True, run_as_user="alice")
 
-        assert 'HERMES_HOME=/home/alice/.hermes' in unit
-        assert '/root/.hermes' not in unit
+        assert 'MAVIS_HOME=/home/alice/.mavis' in unit
+        assert '/root/.mavis' not in unit
 
     def test_system_unit_remaps_profile_to_target_user(self, monkeypatch):
-        # Simulate sudo with a profile: HERMES_HOME was resolved under root
+        # Simulate sudo with a profile: MAVIS_HOME was resolved under root
         monkeypatch.setattr(Path, "home", staticmethod(lambda: Path("/root")))
-        monkeypatch.setenv("HERMES_HOME", "/root/.hermes/profiles/coder")
+        monkeypatch.setenv("MAVIS_HOME", "/root/.mavis/profiles/coder")
         monkeypatch.setattr(
             gateway_cli, "_system_service_identity",
             lambda run_as_user=None: ("alice", "alice", "/home/alice"),
@@ -433,13 +433,13 @@ class TestSystemUnitHermesHome:
 
         unit = gateway_cli.generate_systemd_unit(system=True, run_as_user="alice")
 
-        assert 'HERMES_HOME=/home/alice/.hermes/profiles/coder' in unit
+        assert 'MAVIS_HOME=/home/alice/.mavis/profiles/coder' in unit
         assert '/root/' not in unit
 
     def test_system_unit_preserves_custom_hermes_home(self, monkeypatch):
-        # Custom HERMES_HOME not under any user's home — keep as-is
+        # Custom MAVIS_HOME not under any user's home — keep as-is
         monkeypatch.setattr(Path, "home", staticmethod(lambda: Path("/root")))
-        monkeypatch.setenv("HERMES_HOME", "/opt/hermes-shared")
+        monkeypatch.setenv("MAVIS_HOME", "/opt/hermes-shared")
         monkeypatch.setattr(
             gateway_cli, "_system_service_identity",
             lambda run_as_user=None: ("alice", "alice", "/home/alice"),
@@ -451,14 +451,14 @@ class TestSystemUnitHermesHome:
 
         unit = gateway_cli.generate_systemd_unit(system=True, run_as_user="alice")
 
-        assert 'HERMES_HOME=/opt/hermes-shared' in unit
+        assert 'MAVIS_HOME=/opt/hermes-shared' in unit
 
     def test_user_unit_unaffected_by_change(self):
-        # User-scope units should still use the calling user's HERMES_HOME
+        # User-scope units should still use the calling user's MAVIS_HOME
         unit = gateway_cli.generate_systemd_unit(system=False)
 
         hermes_home = str(gateway_cli.get_hermes_home().resolve())
-        assert f'HERMES_HOME={hermes_home}' in unit
+        assert f'MAVIS_HOME={hermes_home}' in unit
 
 
 class TestHermesHomeForTargetUser:
@@ -466,31 +466,31 @@ class TestHermesHomeForTargetUser:
 
     def test_remaps_default_home(self, monkeypatch):
         monkeypatch.setattr(Path, "home", staticmethod(lambda: Path("/root")))
-        monkeypatch.delenv("HERMES_HOME", raising=False)
+        monkeypatch.delenv("MAVIS_HOME", raising=False)
 
         result = gateway_cli._hermes_home_for_target_user("/home/alice")
-        assert result == "/home/alice/.hermes"
+        assert result == "/home/alice/.mavis"
 
     def test_remaps_profile_path(self, monkeypatch):
         monkeypatch.setattr(Path, "home", staticmethod(lambda: Path("/root")))
-        monkeypatch.setenv("HERMES_HOME", "/root/.hermes/profiles/coder")
+        monkeypatch.setenv("MAVIS_HOME", "/root/.mavis/profiles/coder")
 
         result = gateway_cli._hermes_home_for_target_user("/home/alice")
-        assert result == "/home/alice/.hermes/profiles/coder"
+        assert result == "/home/alice/.mavis/profiles/coder"
 
     def test_keeps_custom_path(self, monkeypatch):
         monkeypatch.setattr(Path, "home", staticmethod(lambda: Path("/root")))
-        monkeypatch.setenv("HERMES_HOME", "/opt/hermes")
+        monkeypatch.setenv("MAVIS_HOME", "/opt/hermes")
 
         result = gateway_cli._hermes_home_for_target_user("/home/alice")
         assert result == "/opt/hermes"
 
     def test_noop_when_same_user(self, monkeypatch):
         monkeypatch.setattr(Path, "home", staticmethod(lambda: Path("/home/alice")))
-        monkeypatch.delenv("HERMES_HOME", raising=False)
+        monkeypatch.delenv("MAVIS_HOME", raising=False)
 
         result = gateway_cli._hermes_home_for_target_user("/home/alice")
-        assert result == "/home/alice/.hermes"
+        assert result == "/home/alice/.mavis"
 
 
 class TestGeneratedUnitUsesDetectedVenv:
@@ -647,23 +647,23 @@ class TestProfileArg:
     """Tests for _profile_arg — returns '--profile <name>' for named profiles."""
 
     def test_default_hermes_home_returns_empty(self, tmp_path, monkeypatch):
-        """Default ~/.hermes should not produce a --profile flag."""
-        hermes_home = tmp_path / ".hermes"
+        """Default ~/.mavis should not produce a --profile flag."""
+        hermes_home = tmp_path / ".mavis"
         hermes_home.mkdir()
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         result = gateway_cli._profile_arg(str(hermes_home))
         assert result == ""
 
     def test_named_profile_returns_flag(self, tmp_path, monkeypatch):
-        """~/.hermes/profiles/mybot should return '--profile mybot'."""
-        profile_dir = tmp_path / ".hermes" / "profiles" / "mybot"
+        """~/.mavis/profiles/mybot should return '--profile mybot'."""
+        profile_dir = tmp_path / ".mavis" / "profiles" / "mybot"
         profile_dir.mkdir(parents=True)
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         result = gateway_cli._profile_arg(str(profile_dir))
         assert result == "--profile mybot"
 
     def test_hash_path_returns_empty(self, tmp_path, monkeypatch):
-        """Arbitrary non-profile HERMES_HOME should return empty string."""
+        """Arbitrary non-profile MAVIS_HOME should return empty string."""
         custom_home = tmp_path / "custom" / "hermes"
         custom_home.mkdir(parents=True)
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
@@ -671,8 +671,8 @@ class TestProfileArg:
         assert result == ""
 
     def test_nested_profile_path_returns_empty(self, tmp_path, monkeypatch):
-        """~/.hermes/profiles/mybot/subdir should NOT match — too deep."""
-        nested = tmp_path / ".hermes" / "profiles" / "mybot" / "subdir"
+        """~/.mavis/profiles/mybot/subdir should NOT match — too deep."""
+        nested = tmp_path / ".mavis" / "profiles" / "mybot" / "subdir"
         nested.mkdir(parents=True)
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         result = gateway_cli._profile_arg(str(nested))
@@ -680,7 +680,7 @@ class TestProfileArg:
 
     def test_invalid_profile_name_returns_empty(self, tmp_path, monkeypatch):
         """Profile names with invalid chars should not match the regex."""
-        bad_profile = tmp_path / ".hermes" / "profiles" / "My Bot!"
+        bad_profile = tmp_path / ".mavis" / "profiles" / "My Bot!"
         bad_profile.mkdir(parents=True)
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
         result = gateway_cli._profile_arg(str(bad_profile))
@@ -688,10 +688,10 @@ class TestProfileArg:
 
     def test_systemd_unit_includes_profile(self, tmp_path, monkeypatch):
         """generate_systemd_unit should include --profile in ExecStart for named profiles."""
-        profile_dir = tmp_path / ".hermes" / "profiles" / "mybot"
+        profile_dir = tmp_path / ".mavis" / "profiles" / "mybot"
         profile_dir.mkdir(parents=True)
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        monkeypatch.setenv("HERMES_HOME", str(profile_dir))
+        monkeypatch.setenv("MAVIS_HOME", str(profile_dir))
         monkeypatch.setattr(gateway_cli, "get_hermes_home", lambda: profile_dir)
         unit = gateway_cli.generate_systemd_unit(system=False)
         assert "--profile mybot" in unit
@@ -699,10 +699,10 @@ class TestProfileArg:
 
     def test_launchd_plist_includes_profile(self, tmp_path, monkeypatch):
         """generate_launchd_plist should include --profile in ProgramArguments for named profiles."""
-        profile_dir = tmp_path / ".hermes" / "profiles" / "mybot"
+        profile_dir = tmp_path / ".mavis" / "profiles" / "mybot"
         profile_dir.mkdir(parents=True)
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
-        monkeypatch.setenv("HERMES_HOME", str(profile_dir))
+        monkeypatch.setenv("MAVIS_HOME", str(profile_dir))
         monkeypatch.setattr(gateway_cli, "get_hermes_home", lambda: profile_dir)
         plist = gateway_cli.generate_launchd_plist()
         assert "<string>--profile</string>" in plist

@@ -1,7 +1,7 @@
 """
-Gateway subcommand for hermes CLI.
+Gateway subcommand for the Mavis CLI.
 
-Handles: hermes gateway [run|start|stop|restart|status|install|uninstall|setup]
+Handles: mavis gateway [run|start|stop|restart|status|install|uninstall|setup]
 """
 
 import asyncio
@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
 from hermes_cli.config import get_env_value, get_hermes_home, save_env_value, is_managed, managed_error
 # display_hermes_home is imported lazily at call sites to avoid ImportError
-# when hermes_constants is cached from a pre-update version during `hermes update`.
+# when hermes_constants is cached from a pre-update version during `mavis update`.
 from hermes_cli.setup import (
     print_header, print_info, print_success, print_warning, print_error,
     prompt, prompt_choice, prompt_yes_no,
@@ -43,7 +43,7 @@ def _get_service_pids() -> set:
         for scope_args in [["systemctl", "--user"], ["systemctl"]]:
             try:
                 result = subprocess.run(
-                    scope_args + ["list-units", "hermes-gateway*",
+                    scope_args + ["list-units", "mavis-gateway*",
                                   "--plain", "--no-legend", "--no-pager"],
                     capture_output=True, text=True, timeout=5,
                 )
@@ -103,7 +103,7 @@ def find_gateway_pids(exclude_pids: set | None = None) -> list:
     patterns = [
         "hermes_cli.main gateway",
         "hermes_cli/main.py gateway",
-        "hermes gateway",
+        "mavis gateway",
         "gateway/run.py",
     ]
 
@@ -186,7 +186,7 @@ def kill_gateway_processes(force: bool = False, exclude_pids: set | None = None)
 
 
 def stop_profile_gateway() -> bool:
-    """Stop only the gateway for the current profile (HERMES_HOME-scoped).
+    """Stop only the gateway for the current profile (MAVIS_HOME-scoped).
 
     Uses the PID file written by start_gateway(), so it only kills the
     gateway belonging to this profile — not gateways from other profiles.
@@ -236,25 +236,25 @@ def is_windows() -> bool:
 # Service Configuration
 # =============================================================================
 
-_SERVICE_BASE = "hermes-gateway"
-SERVICE_DESCRIPTION = "Hermes Agent Gateway - Messaging Platform Integration"
+_SERVICE_BASE = "mavis-gateway"
+SERVICE_DESCRIPTION = "Mavis Gateway - Messaging Platform Integration"
 
 
 def _profile_suffix() -> str:
-    """Derive a service-name suffix from the current HERMES_HOME.
+    """Derive a service-name suffix from the current MAVIS_HOME.
 
-    Returns ``""`` for the default ``~/.hermes``, the profile name for
-    ``~/.hermes/profiles/<name>``, or a short hash for any other custom
-    HERMES_HOME path.
+    Returns ``""`` for the default ``~/.mavis``, the profile name for
+    ``~/.mavis/profiles/<name>``, or a short hash for any other custom
+    MAVIS_HOME path.
     """
     import hashlib
     import re
     from pathlib import Path as _Path
     home = get_hermes_home().resolve()
-    default = (_Path.home() / ".hermes").resolve()
+    default = (_Path.home() / ".mavis").resolve()
     if home == default:
         return ""
-    # Detect ~/.hermes/profiles/<name> pattern → use the profile name
+    # Detect ~/.mavis/profiles/<name> pattern → use the profile name
     profiles_root = (default / "profiles").resolve()
     try:
         rel = home.relative_to(profiles_root)
@@ -263,25 +263,25 @@ def _profile_suffix() -> str:
             return parts[0]
     except ValueError:
         pass
-    # Fallback: short hash for arbitrary HERMES_HOME paths
+    # Fallback: short hash for arbitrary MAVIS_HOME paths
     return hashlib.sha256(str(home).encode()).hexdigest()[:8]
 
 
 def _profile_arg(hermes_home: str | None = None) -> str:
-    """Return ``--profile <name>`` only when HERMES_HOME is a named profile.
+    """Return ``--profile <name>`` only when MAVIS_HOME is a named profile.
 
-    For ``~/.hermes/profiles/<name>``, returns ``"--profile <name>"``.
+    For ``~/.mavis/profiles/<name>``, returns ``"--profile <name>"``.
     For the default profile or hash-based custom paths, returns the empty string.
 
     Args:
-        hermes_home: Optional explicit HERMES_HOME path. Defaults to the current
+        hermes_home: Optional explicit MAVIS_HOME path. Defaults to the current
             ``get_hermes_home()`` value. Should be passed when generating a
             service definition for a different user (e.g. system service).
     """
     import re
     from pathlib import Path as _Path
     home = Path(hermes_home or str(get_hermes_home())).resolve()
-    default = (_Path.home() / ".hermes").resolve()
+    default = (_Path.home() / ".mavis").resolve()
     if home == default:
         return ""
     profiles_root = (default / "profiles").resolve()
@@ -296,11 +296,11 @@ def _profile_arg(hermes_home: str | None = None) -> str:
 
 
 def get_service_name() -> str:
-    """Derive a systemd service name scoped to this HERMES_HOME.
+    """Derive a systemd service name scoped to this MAVIS_HOME.
 
-    Default ``~/.hermes`` returns ``hermes-gateway`` (backward compatible).
-    Profile ``~/.hermes/profiles/coder`` returns ``hermes-gateway-coder``.
-    Any other HERMES_HOME appends a short hash for uniqueness.
+    Default ``~/.mavis`` returns ``mavis-gateway`` (backward compatible).
+    Profile ``~/.mavis/profiles/coder`` returns ``mavis-gateway-coder``.
+    Any other MAVIS_HOME appends a short hash for uniqueness.
     """
     suffix = _profile_suffix()
     if not suffix:
@@ -381,8 +381,8 @@ def print_systemd_scope_conflict_warning() -> None:
     print_info("  This is confusing and can make start/stop/status behavior ambiguous.")
     print_info("  Default gateway commands target the user service unless you pass --system.")
     print_info("  Keep one of these:")
-    print_info("    hermes gateway uninstall")
-    print_info("    sudo hermes gateway uninstall --system")
+    print_info("    mavis gateway uninstall")
+    print_info("    sudo mavis gateway uninstall --system")
 
 
 def _require_root_for_system_service(action: str) -> None:
@@ -453,12 +453,12 @@ def install_linux_gateway_from_setup(force: bool = False) -> tuple[str | None, b
     if scope == "system":
         run_as_user = _default_system_service_user()
         if os.geteuid() != 0:
-            print_warning("  System service install requires sudo, so Hermes can't create it from this user session.")
+            print_warning("  System service install requires sudo, so Mavis can't create it from this user session.")
             if run_as_user:
-                print_info(f"  After setup, run: sudo hermes gateway install --system --run-as-user {run_as_user}")
+                print_info(f"  After setup, run: sudo mavis gateway install --system --run-as-user {run_as_user}")
             else:
-                print_info("  After setup, run: sudo hermes gateway install --system --run-as-user <your-user>")
-            print_info("  Then start it with: sudo hermes gateway start --system")
+                print_info("  After setup, run: sudo mavis gateway install --system --run-as-user <your-user>")
+            print_info("  Then start it with: sudo mavis gateway start --system")
             return scope, False
 
         if not run_as_user:
@@ -541,11 +541,11 @@ def print_systemd_linger_guidance() -> None:
 def get_launchd_plist_path() -> Path:
     """Return the launchd plist path, scoped per profile.
 
-    Default ``~/.hermes`` → ``ai.hermes.gateway.plist`` (backward compatible).
-    Profile ``~/.hermes/profiles/coder`` → ``ai.hermes.gateway-coder.plist``.
+    Default ``~/.mavis`` → ``ai.mavis.gateway.plist`` (backward compatible).
+    Profile ``~/.mavis/profiles/coder`` → ``ai.mavis.gateway-coder.plist``.
     """
     suffix = _profile_suffix()
-    name = f"ai.hermes.gateway-{suffix}" if suffix else "ai.hermes.gateway"
+    name = f"ai.mavis.gateway-{suffix}" if suffix else "ai.mavis.gateway"
     return Path.home() / "Library" / "LaunchAgents" / f"{name}.plist"
 
 def _detect_venv_dir() -> Path | None:
@@ -582,10 +582,10 @@ def get_python_path() -> str:
     return sys.executable
 
 def get_hermes_cli_path() -> str:
-    """Get the path to the hermes CLI."""
+    """Get the path to the Mavis CLI."""
     # Check if installed via pip
     import shutil
-    hermes_bin = shutil.which("hermes")
+    hermes_bin = shutil.which("mavis")
     if hermes_bin:
         return hermes_bin
     
@@ -609,28 +609,28 @@ def _build_user_local_paths(home: Path, path_entries: list[str]) -> list[str]:
 
 
 def _hermes_home_for_target_user(target_home_dir: str) -> str:
-    """Remap the current HERMES_HOME to the equivalent under a target user's home.
+    """Remap the current MAVIS_HOME to the equivalent under a target user's home.
 
     When installing a system service via sudo, get_hermes_home() resolves to
     root's home.  This translates it to the target user's equivalent path:
-      /root/.hermes                    → /home/alice/.hermes
-      /root/.hermes/profiles/coder     → /home/alice/.hermes/profiles/coder
+      /root/.mavis                    → /home/alice/.mavis
+      /root/.mavis/profiles/coder     → /home/alice/.mavis/profiles/coder
       /opt/custom-hermes               → /opt/custom-hermes  (kept as-is)
     """
     current_hermes = get_hermes_home().resolve()
-    current_default = (Path.home() / ".hermes").resolve()
-    target_default = Path(target_home_dir) / ".hermes"
+    current_default = (Path.home() / ".mavis").resolve()
+    target_default = Path(target_home_dir) / ".mavis"
 
-    # Default ~/.hermes → remap to target user's default
+    # Default ~/.mavis → remap to target user's default
     if current_hermes == current_default:
         return str(target_default)
 
-    # Profile or subdir of ~/.hermes → preserve the relative structure
+    # Profile or subdir of ~/.mavis → preserve the relative structure
     try:
         relative = current_hermes.relative_to(current_default)
         return str(target_default / relative)
     except ValueError:
-        # Completely custom path (not under ~/.hermes) — keep as-is
+        # Completely custom path (not under ~/.mavis) — keep as-is
         return str(current_hermes)
 
 
@@ -676,7 +676,7 @@ Environment="USER={username}"
 Environment="LOGNAME={username}"
 Environment="PATH={sane_path}"
 Environment="VIRTUAL_ENV={venv_dir}"
-Environment="HERMES_HOME={hermes_home}"
+Environment="MAVIS_HOME={hermes_home}"
 Restart=on-failure
 RestartSec=30
 KillMode=mixed
@@ -706,7 +706,7 @@ ExecStart={python_path} -m hermes_cli.main{f" {profile_arg}" if profile_arg else
 WorkingDirectory={working_dir}
 Environment="PATH={sane_path}"
 Environment="VIRTUAL_ENV={venv_dir}"
-Environment="HERMES_HOME={hermes_home}"
+Environment="MAVIS_HOME={hermes_home}"
 Restart=on-failure
 RestartSec=30
 KillMode=mixed
@@ -744,7 +744,7 @@ def refresh_systemd_unit_if_needed(system: bool = False) -> bool:
     expected_user = _read_systemd_user_from_unit(unit_path) if system else None
     unit_path.write_text(generate_systemd_unit(system=system, run_as_user=expected_user), encoding="utf-8")
     subprocess.run(_systemctl_cmd(system) + ["daemon-reload"], check=True, timeout=30)
-    print(f"↻ Updated gateway {_service_scope_label(system)} service definition to match the current Hermes install")
+    print(f"↻ Updated gateway {_service_scope_label(system)} service definition to match the current Mavis install")
     return True
 
 
@@ -843,8 +843,8 @@ def systemd_install(force: bool = False, system: bool = False, run_as_user: str 
     print(f"✓ {_service_scope_label(system).capitalize()} service installed and enabled!")
     print()
     print("Next steps:")
-    print(f"  {'sudo ' if system else ''}hermes gateway start{scope_flag}              # Start the service")
-    print(f"  {'sudo ' if system else ''}hermes gateway status{scope_flag}             # Check status")
+    print(f"  {'sudo ' if system else ''}mavis gateway start{scope_flag}              # Start the service")
+    print(f"  {'sudo ' if system else ''}mavis gateway status{scope_flag}             # Check status")
     print(f"  {'journalctl' if system else 'journalctl --user'} -u {get_service_name()} -f  # View logs")
     print()
 
@@ -911,7 +911,7 @@ def systemd_status(deep: bool = False, system: bool = False):
 
     if not unit_path.exists():
         print("✗ Gateway service is not installed")
-        print(f"  Run: {'sudo ' if system else ''}hermes gateway install{scope_flag}")
+        print(f"  Run: {'sudo ' if system else ''}mavis gateway install{scope_flag}")
         return
 
     if has_conflicting_systemd_units():
@@ -920,7 +920,7 @@ def systemd_status(deep: bool = False, system: bool = False):
 
     if not systemd_unit_is_current(system=system):
         print("⚠ Installed gateway service definition is outdated")
-        print(f"  Run: {'sudo ' if system else ''}hermes gateway restart{scope_flag}  # auto-refreshes the unit")
+        print(f"  Run: {'sudo ' if system else ''}mavis gateway restart{scope_flag}  # auto-refreshes the unit")
         print()
 
     subprocess.run(
@@ -942,7 +942,7 @@ def systemd_status(deep: bool = False, system: bool = False):
         print(f"✓ {_service_scope_label(system).capitalize()} gateway service is running")
     else:
         print(f"✗ {_service_scope_label(system).capitalize()} gateway service is stopped")
-        print(f"  Run: {'sudo ' if system else ''}hermes gateway start{scope_flag}")
+        print(f"  Run: {'sudo ' if system else ''}mavis gateway start{scope_flag}")
 
     configured_user = _read_systemd_user_from_unit(unit_path) if system else None
     if configured_user:
@@ -980,7 +980,7 @@ def systemd_status(deep: bool = False, system: bool = False):
 def get_launchd_label() -> str:
     """Return the launchd service label, scoped per profile."""
     suffix = _profile_suffix()
-    return f"ai.hermes.gateway-{suffix}" if suffix else "ai.hermes.gateway"
+    return f"ai.mavis.gateway-{suffix}" if suffix else "ai.mavis.gateway"
 
 
 def _launchd_domain() -> str:
@@ -1054,7 +1054,7 @@ def generate_launchd_plist() -> str:
         <string>{sane_path}</string>
         <key>VIRTUAL_ENV</key>
         <string>{venv_dir}</string>
-        <key>HERMES_HOME</key>
+        <key>MAVIS_HOME</key>
         <string>{hermes_home}</string>
     </dict>
     
@@ -1103,7 +1103,7 @@ def refresh_launchd_plist_if_needed() -> bool:
     # Bootout/bootstrap so launchd picks up the new definition
     subprocess.run(["launchctl", "bootout", f"{_launchd_domain()}/{label}"], check=False, timeout=90)
     subprocess.run(["launchctl", "bootstrap", _launchd_domain(), str(plist_path)], check=False, timeout=30)
-    print("↻ Updated gateway launchd service definition to match the current Hermes install")
+    print("↻ Updated gateway launchd service definition to match the current Mavis install")
     return True
 
 
@@ -1130,7 +1130,7 @@ def launchd_install(force: bool = False):
     print("✓ Service installed and loaded!")
     print()
     print("Next steps:")
-    print("  hermes gateway status             # Check status")
+    print("  mavis gateway status             # Check status")
     from hermes_constants import display_hermes_home as _dhh
     print(f"  tail -f {_dhh()}/logs/gateway.log  # View logs")
 
@@ -1180,7 +1180,7 @@ def _wait_for_gateway_exit(timeout: float = 10.0, force_after: float = 5.0):
 
     Uses the PID from the gateway.pid file — not launchd labels — so this
     works correctly when multiple gateway instances run under separate
-    HERMES_HOME directories.
+    MAVIS_HOME directories.
 
     Args:
         timeout: Total seconds to wait before giving up.
@@ -1252,10 +1252,10 @@ def launchd_status(deep: bool = False):
 
     print(f"Launchd plist: {plist_path}")
     if launchd_plist_is_current():
-        print("✓ Service definition matches the current Hermes install")
+        print("✓ Service definition matches the current Mavis install")
     else:
-        print("⚠ Service definition is stale relative to the current Hermes install")
-        print("  Run: hermes gateway start")
+        print("⚠ Service definition is stale relative to the current Mavis install")
+        print("  Run: mavis gateway start")
 
     if loaded:
         print("✓ Gateway service is loaded")
@@ -1263,7 +1263,7 @@ def launchd_status(deep: bool = False):
     else:
         print("✗ Gateway service is not loaded")
         print("  Service definition exists locally but launchd has not loaded it.")
-        print("  Run: hermes gateway start")
+        print("  Run: mavis gateway start")
     
     if deep:
         log_file = get_hermes_home() / "logs" / "gateway.log"
@@ -1292,7 +1292,7 @@ def run_gateway(verbose: int = 0, quiet: bool = False, replace: bool = False):
     from gateway.run import start_gateway
     
     print("┌─────────────────────────────────────────────────────────┐")
-    print("│           ⚕ Hermes Gateway Starting...                 │")
+    print("│           Mavis Gateway Starting...                 │")
     print("├─────────────────────────────────────────────────────────┤")
     print("│  Messaging platforms + cron scheduler                    │")
     print("│  Press Ctrl+C to stop                                   │")
@@ -1405,7 +1405,7 @@ _PLATFORMS = [
             "3. Get an access token: Element → Settings → Help & About → Access Token",
             "   Or via API: curl -X POST https://your-server/_matrix/client/v3/login \\",
             "     -d '{\"type\":\"m.login.password\",\"user\":\"@bot:server\",\"password\":\"...\"}'",
-            "4. Alternatively, provide user ID + password and Hermes will log in directly",
+            "4. Alternatively, provide user ID + password and Mavis will log in directly",
             "5. For E2EE: set MATRIX_ENCRYPTION=true (requires pip install 'matrix-nio[e2e]')",
             "6. To find your user ID: it's @username:your-server (shown in Element profile)",
         ],
@@ -1447,7 +1447,7 @@ _PLATFORMS = [
              "is_allowlist": True,
              "help": "Your Mattermost user ID from step 4 above."},
             {"name": "MATTERMOST_HOME_CHANNEL", "prompt": "Home channel ID (for cron/notification delivery, or empty to set later with /set-home)", "password": False,
-             "help": "Channel ID where Hermes delivers cron results and notifications."},
+             "help": "Channel ID where Mavis delivers cron results and notifications."},
             {"name": "MATTERMOST_REPLY_MODE", "prompt": "Reply mode — 'off' for flat messages, 'thread' for threaded replies (default: off)", "password": False,
              "help": "off = flat channel messages, thread = replies nest under your message."},
         ],
@@ -1470,7 +1470,7 @@ _PLATFORMS = [
         "emoji": "📧",
         "token_var": "EMAIL_ADDRESS",
         "setup_instructions": [
-            "1. Use a dedicated email account for your Hermes agent",
+            "1. Use a dedicated email account for your Mavis agent",
             "2. For Gmail: enable 2FA, then create an App Password at",
             "   https://myaccount.google.com/apppasswords",
             "3. For other providers: use your email password or app-specific password",
@@ -1478,7 +1478,7 @@ _PLATFORMS = [
         ],
         "vars": [
             {"name": "EMAIL_ADDRESS", "prompt": "Email address", "password": False,
-             "help": "The email address Hermes will use (e.g., hermes@gmail.com)."},
+             "help": "The email address Mavis will use (e.g., mavis@example.com)."},
             {"name": "EMAIL_PASSWORD", "prompt": "Email password (or app password)", "password": True,
              "help": "For Gmail, use an App Password (not your regular password)."},
             {"name": "EMAIL_IMAP_HOST", "prompt": "IMAP host", "password": False,
@@ -1726,7 +1726,7 @@ def _setup_standard_platform(platform: dict):
                 print()
                 access_choices = [
                     "Enable open access (anyone can message the bot)",
-                    "Use DM pairing (unknown users request access, you approve with 'hermes pairing approve')",
+                    "Use DM pairing (unknown users request access, you approve with 'mavis pairing approve')",
                     "Skip for now (bot will deny all users until configured)",
                 ]
                 access_idx = prompt_choice("  How should unauthorized users be handled?", access_choices, 1)
@@ -1735,9 +1735,9 @@ def _setup_standard_platform(platform: dict):
                     print_warning("  Open access enabled — anyone can use your bot!")
                 elif access_idx == 1:
                     print_success("  DM pairing mode — users will receive a code to request access.")
-                    print_info("  Approve with: hermes pairing approve {platform} {code}")
+                    print_info("  Approve with: mavis pairing approve {platform} {code}")
                 else:
-                    print_info("  Skipped — configure later with 'hermes gateway setup'")
+                    print_info("  Skipped — configure later with 'mavis gateway setup'")
             continue
 
         value = prompt(f"  {var['prompt']}", password=var.get("password", False))
@@ -1850,7 +1850,7 @@ def _setup_signal():
         print_info("    Docker: bbernhard/signal-cli-rest-api")
         print()
         print_info("  After installing, link your account and start the daemon:")
-        print_info("    signal-cli link -n \"HermesAgent\"")
+        print_info("    signal-cli link -n \"MavisAgent\"")
         print_info("    signal-cli --account +YOURNUMBER daemon --http 127.0.0.1:8080")
         print()
 
@@ -2022,7 +2022,7 @@ def gateway_setup():
                         launchd_restart()
                     else:
                         stop_profile_gateway()
-                        print_info("Start manually: hermes gateway")
+                        print_info("Start manually: mavis gateway")
                 except subprocess.CalledProcessError as e:
                     print_error(f"  Restart failed: {e}")
         elif service_installed:
@@ -2058,18 +2058,18 @@ def gateway_setup():
                                 print_error(f"  Start failed: {e}")
                     except subprocess.CalledProcessError as e:
                         print_error(f"  Install failed: {e}")
-                        print_info("  You can try manually: hermes gateway install")
+                        print_info("  You can try manually: mavis gateway install")
                 else:
-                    print_info("  You can install later: hermes gateway install")
+                    print_info("  You can install later: mavis gateway install")
                     if is_linux():
-                        print_info("  Or as a boot-time service: sudo hermes gateway install --system")
-                    print_info("  Or run in foreground:  hermes gateway")
+                        print_info("  Or as a boot-time service: sudo mavis gateway install --system")
+                    print_info("  Or run in foreground:  mavis gateway")
             else:
                 print_info("  Service install not supported on this platform.")
-                print_info("  Run in foreground: hermes gateway")
+                print_info("  Run in foreground: mavis gateway")
     else:
         print()
-        print_info("No platforms configured. Run 'hermes gateway setup' when ready.")
+        print_info("No platforms configured. Run 'mavis gateway setup' when ready.")
 
     print()
 
@@ -2108,7 +2108,7 @@ def gateway_command(args):
             launchd_install(force)
         else:
             print("Service installation not supported on this platform.")
-            print("Run manually: hermes gateway run")
+            print("Run manually: mavis gateway run")
             sys.exit(1)
     
     elif subcmd == "uninstall":
@@ -2219,14 +2219,14 @@ def gateway_command(args):
                     print(f"  Run:  sudo loginctl enable-linger {_username}")
                     print()
                     print("  Then restart the gateway:")
-                    print("    hermes gateway restart")
+                    print("    mavis gateway restart")
                     return
 
             if service_configured:
                 print()
                 print("✗ Gateway service restart failed.")
                 print("  The service definition exists, but the service manager did not recover it.")
-                print("  Fix the service, then retry: hermes gateway start")
+                print("  Fix the service, then retry: mavis gateway start")
                 sys.exit(1)
 
             # Manual restart: stop only this profile's gateway
@@ -2262,8 +2262,8 @@ def gateway_command(args):
                         print(f"  {line}")
                 print()
                 print("To install as a service:")
-                print("  hermes gateway install")
-                print("  sudo hermes gateway install --system")
+                print("  mavis gateway install")
+                print("  sudo mavis gateway install --system")
             else:
                 print("✗ Gateway is not running")
                 runtime_lines = _runtime_health_lines()
@@ -2274,6 +2274,6 @@ def gateway_command(args):
                         print(f"  {line}")
                 print()
                 print("To start:")
-                print("  hermes gateway          # Run in foreground")
-                print("  hermes gateway install  # Install as user service")
-                print("  sudo hermes gateway install --system  # Install as boot-time system service")
+                print("  mavis gateway          # Run in foreground")
+                print("  mavis gateway install  # Install as user service")
+                print("  sudo mavis gateway install --system  # Install as boot-time system service")

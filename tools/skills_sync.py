@@ -2,7 +2,7 @@
 """
 Skills Sync -- Manifest-based seeding and updating of bundled skills.
 
-Copies bundled skills from the repo's skills/ directory into ~/.hermes/skills/
+Copies bundled skills from the repo's skills/ directory into ~/.mavis/skills/
 and uses a manifest to track which skills have been synced and their origin hash.
 
 Manifest format (v2): each line is "skill_name:origin_hash" where origin_hash
@@ -18,7 +18,7 @@ Update logic:
   - DELETED by user (in manifest, absent from user dir): respected, not re-added.
   - REMOVED from bundled (in manifest, gone from repo): cleaned from manifest.
 
-The manifest lives at ~/.hermes/skills/.bundled_manifest.
+The manifest lives at ~/.mavis/skills/.bundled_manifest.
 """
 
 import hashlib
@@ -40,10 +40,10 @@ MANIFEST_FILE = SKILLS_DIR / ".bundled_manifest"
 def _get_bundled_dir() -> Path:
     """Locate the bundled skills/ directory.
 
-    Checks HERMES_BUNDLED_SKILLS env var first (set by Nix wrapper),
+    Checks MAVIS_BUNDLED_SKILLS env var first (set by packaging wrappers),
     then falls back to the relative path from this source file.
     """
-    env_override = os.getenv("HERMES_BUNDLED_SKILLS")
+    env_override = os.getenv("MAVIS_BUNDLED_SKILLS")
     if env_override:
         return Path(env_override)
     return Path(__file__).parent.parent / "skills"
@@ -132,7 +132,7 @@ def _discover_bundled_skills(bundled_dir: Path) -> List[Tuple[str, Path]]:
 def _compute_relative_dest(skill_dir: Path, bundled_dir: Path) -> Path:
     """
     Compute the destination path in SKILLS_DIR preserving the category structure.
-    e.g., bundled/skills/mlops/axolotl -> ~/.hermes/skills/mlops/axolotl
+    e.g., bundled/skills/mlops/axolotl -> ~/.mavis/skills/mlops/axolotl
     """
     rel = skill_dir.relative_to(bundled_dir)
     return SKILLS_DIR / rel

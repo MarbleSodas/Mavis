@@ -54,7 +54,6 @@ from hermes_constants import (
     APP_NAME,
     CLI_NAME,
     HOME_ENV_VAR,
-    LEGACY_HOME_ENV_VAR,
     OPENROUTER_BASE_URL,
 )
 
@@ -83,14 +82,14 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # ---------------------------------------------------------------------------
 # Profile override — MUST happen before any hermes module import.
 #
-# Many modules cache HERMES_HOME at import time (module-level constants).
-# We intercept --profile/-p from sys.argv here and set the env var so that
-# every subsequent ``os.getenv("HERMES_HOME", ...)`` resolves correctly.
+# Many modules cache the resolved home directory at import time.
+# We intercept --profile/-p from sys.argv here and set ``MAVIS_HOME`` early so
+# profile-aware imports land in the right state directory.
 # The flag is stripped from sys.argv so argparse never sees it.
 # Falls back to ~/.mavis/active_profile for sticky default.
 # ---------------------------------------------------------------------------
 def _apply_profile_override() -> None:
-    """Pre-parse --profile/-p and set HERMES_HOME before module imports."""
+    """Pre-parse --profile/-p and set MAVIS_HOME before module imports."""
     argv = sys.argv[1:]
     profile_name = None
     consume = 0
@@ -118,7 +117,7 @@ def _apply_profile_override() -> None:
         except (UnicodeDecodeError, OSError):
             pass  # corrupted file, skip
 
-    # 3. If we found a profile, resolve and set HERMES_HOME
+    # 3. If we found a profile, resolve and set MAVIS_HOME
     if profile_name is not None:
         try:
             from hermes_cli.profiles import resolve_profile_env
@@ -131,7 +130,6 @@ def _apply_profile_override() -> None:
             print(f"Warning: profile override failed ({exc}), using default", file=sys.stderr)
             return
         os.environ[HOME_ENV_VAR] = hermes_home
-        os.environ[LEGACY_HOME_ENV_VAR] = hermes_home
         # Strip the flag from argv so argparse doesn't choke
         if consume > 0:
             for i, arg in enumerate(argv):
@@ -692,7 +690,7 @@ def cmd_whatsapp(args):
     current_mode = get_env_value("WHATSAPP_MODE") or ""
     if not current_mode:
         print()
-        print("How will you use WhatsApp with Hermes?")
+        print("How will you use WhatsApp with Mavis?")
         print()
         print("  1. Separate bot number (recommended)")
         print("     People message the bot's number directly — cleanest experience.")
@@ -1426,7 +1424,7 @@ def _model_flow_custom(config):
     else:
         print(
             f"Warning: could not verify this endpoint via {probe.get('probed_url')}. "
-            f"Hermes will still save it."
+            f"{APP_NAME} will still save it."
         )
         if probe.get("suggested_base_url"):
             print(f"  If this server expects /v1, try base URL: {probe['suggested_base_url']}")
@@ -2036,9 +2034,9 @@ def _model_flow_copilot_acp(config, current_model=""):
     resolved_command = status.get("resolved_command") or status.get("command") or "copilot"
     effective_base = status.get("base_url") or pconfig.inference_base_url
 
-    print("  GitHub Copilot ACP delegates Hermes turns to `copilot --acp`.")
-    print("  Hermes currently starts its own ACP subprocess for each request.")
-    print("  Hermes uses your selected model as a hint for the Copilot ACP session.")
+    print("  GitHub Copilot ACP delegates Mavis turns to `copilot --acp`.")
+    print("  Mavis currently starts its own ACP subprocess for each request.")
+    print("  Mavis uses your selected model as a hint for the Copilot ACP session.")
     print(f"  Command: {resolved_command}")
     print(f"  Backend marker: {effective_base}")
     print()
@@ -2362,7 +2360,7 @@ def _run_anthropic_oauth_flow(save_env_value):
             use_anthropic_claude_code_credentials(save_fn=save_env_value)
             print("  ✓ Claude Code credentials linked.")
             from hermes_constants import display_hermes_home as _dhh_fn
-            print(f"    Hermes will use Claude's credential store directly instead of copying a setup-token into {_dhh_fn()}/.env.")
+            print(f"    Mavis will use Claude's credential store directly instead of copying a setup-token into {_dhh_fn()}/.env.")
             return True
         return False
 
@@ -2598,6 +2596,12 @@ def cmd_config(args):
     """Configuration management."""
     from hermes_cli.config import config_command
     config_command(args)
+
+
+def cmd_migrate_hermes(args):
+    """Import legacy Hermes state into the active Mavis home."""
+    from hermes_cli.migrate_hermes import migrate_hermes_command
+    migrate_hermes_command(args)
 
 
 def cmd_version(args):
@@ -3253,9 +3257,9 @@ def _invalidate_update_cache():
     """
     homes = []
     # Default profile home
-    default_home = Path.home() / ".hermes"
+    default_home = Path.home() / ".mavis"
     homes.append(default_home)
-    # Named profiles under ~/.hermes/profiles/
+    # Named profiles under ~/.mavis/profiles/
     profiles_root = default_home / "profiles"
     if profiles_root.is_dir():
         for entry in profiles_root.iterdir():
@@ -3717,7 +3721,7 @@ def cmd_update(args):
             killed_pids = set()
 
             # --- Systemd services (Linux) ---
-            # Discover all hermes-gateway* units (default + profiles)
+            # Discover all mavis-gateway* units (default + profiles)
             if is_linux():
                 try:
                     _ensure_user_systemd_env()
@@ -3727,14 +3731,14 @@ def cmd_update(args):
                 for scope, scope_cmd in [("user", ["systemctl", "--user"]), ("system", ["systemctl"])]:
                     try:
                         result = subprocess.run(
-                            scope_cmd + ["list-units", "hermes-gateway*", "--plain", "--no-legend", "--no-pager"],
+                            scope_cmd + ["list-units", "mavis-gateway*", "--plain", "--no-legend", "--no-pager"],
                             capture_output=True, text=True, timeout=10,
                         )
                         for line in result.stdout.strip().splitlines():
                             parts = line.split()
                             if not parts:
                                 continue
-                            unit = parts[0]  # e.g. hermes-gateway.service or hermes-gateway-coder.service
+                            unit = parts[0]  # e.g. mavis-gateway.service or mavis-gateway-coder.service
                             if not unit.endswith(".service"):
                                 continue
                             svc_name = unit.removesuffix(".service")
@@ -3797,7 +3801,7 @@ def cmd_update(args):
                     print(f"    Restart manually: {CLI_NAME} gateway run")
                     # Also restart for each profile if needed
                     if len(killed_pids) > 1:
-                        print("    (or: hermes -p <profile> gateway run  for each profile)")
+                        print(f"    (or: {CLI_NAME} -p <profile> gateway run  for each profile)")
 
             if not restarted_services and not killed_pids:
                 # No gateways were running — nothing to do
@@ -3887,7 +3891,7 @@ def cmd_profile(args):
                 print(f"Gateway:        {'running' if p.gateway_running else 'stopped'}")
                 print(f"Skills:         {p.skill_count} installed")
                 if p.alias_path:
-                    print(f"Alias:          {p.name} → hermes -p {p.name}")
+                    print(f"Alias:          {p.name} → mavis -p {p.name}")
                 break
         print()
         return
@@ -3920,7 +3924,7 @@ def cmd_profile(args):
         try:
             set_active_profile(name)
             if name == "default":
-                print(f"Switched to: default (~/.hermes)")
+                print(f"Switched to: default (~/.mavis)")
             else:
                 print(f"Switched to: {name}")
         except (ValueError, FileNotFoundError) as e:
@@ -3976,7 +3980,7 @@ def cmd_profile(args):
                 if collision:
                     print(f"\n⚠ Cannot create alias '{name}' — {collision}")
                     print(f"  Choose a custom alias:  {CLI_NAME} profile alias {name} --name <custom>")
-                    print(f"  Or access via flag:     hermes -p {name} chat")
+                    print(f"  Or access via flag:     mavis -p {name} chat")
                 else:
                     wrapper_path = create_wrapper_script(name)
                     if wrapper_path:
@@ -3992,7 +3996,7 @@ def cmd_profile(args):
             print(f"  {name} chat               Start chatting")
             print(f"  {name} gateway start      Start the messaging gateway")
             if clone or clone_all:
-                profile_dir_display = f"~/.hermes/profiles/{name}"
+                profile_dir_display = f"~/.mavis/profiles/{name}"
                 print(f"\n  Edit {profile_dir_display}/.env for different API keys")
                 print(f"  Edit {profile_dir_display}/SOUL.md for different personality")
             print()
@@ -4060,7 +4064,7 @@ def cmd_profile(args):
             if wrapper_path:
                 # If custom name, write the profile name into the wrapper
                 if custom_name:
-                    wrapper_path.write_text(f'#!/bin/sh\nexec hermes -p {name} "$@"\n')
+                    wrapper_path.write_text(f'#!/bin/sh\nexec {CLI_NAME} -p {name} "$@"\n')
                 print(f"✓ Alias created: {wrapper_path}")
                 if not _is_wrapper_dir_in_path():
                     print(f"⚠ {_get_wrapper_dir()} is not in your PATH.")
@@ -4170,6 +4174,7 @@ Examples:
     mavis logs errors            View errors.log
     mavis logs --since 1h        Lines from the last hour
     mavis update                 Update to latest version
+    mavis migrate-hermes         Import data from a legacy Hermes home
 
 For more help on a command:
     mavis <command> --help
@@ -4337,7 +4342,7 @@ For more help on a command:
     model_parser.add_argument(
         "--client-id",
         default=None,
-        help="OAuth client id to use for Nous login (default: hermes-cli)"
+        help="OAuth client id to use for Nous login (default: mavis-cli)"
     )
     model_parser.add_argument(
         "--scope",
@@ -4447,6 +4452,36 @@ For more help on a command:
     setup_parser.set_defaults(func=cmd_setup)
 
     # =========================================================================
+    # migrate-hermes command
+    # =========================================================================
+    migrate_hermes_parser = subparsers.add_parser(
+        "migrate-hermes",
+        help="Import data from a legacy Hermes home into Mavis",
+        description="Copy config, auth, sessions, skills, and voice state from ~/.hermes into the active Mavis home"
+    )
+    migrate_hermes_parser.add_argument(
+        "--source",
+        default=None,
+        help="Path to the legacy Hermes home (default: ~/.hermes)"
+    )
+    migrate_hermes_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview what would be copied without changing Mavis data"
+    )
+    migrate_hermes_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace existing Mavis files when the same path already exists"
+    )
+    migrate_hermes_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Skip the confirmation prompt"
+    )
+    migrate_hermes_parser.set_defaults(func=cmd_migrate_hermes)
+
+    # =========================================================================
     # whatsapp command
     # =========================================================================
     whatsapp_parser = subparsers.add_parser(
@@ -4481,7 +4516,7 @@ For more help on a command:
     login_parser.add_argument(
         "--client-id",
         default=None,
-        help="OAuth client id to use (default: hermes-cli)"
+        help="OAuth client id to use (default: mavis-cli)"
     )
     login_parser.add_argument(
         "--scope",
@@ -5002,9 +5037,9 @@ For more help on a command:
     # =========================================================================
     mcp_parser = subparsers.add_parser(
         "mcp",
-        help="Manage MCP servers and run Hermes as an MCP server",
+        help="Manage MCP servers and run Mavis as an MCP server",
         description=(
-            "Manage MCP server connections and run Hermes as an MCP server.\n\n"
+            "Manage MCP server connections and run Mavis as an MCP server.\n\n"
             "MCP servers provide additional tools via the Model Context Protocol.\n"
             "Use 'mavis mcp add' to connect to a new server, or\n"
             "'mavis mcp serve' to expose Mavis conversations over MCP."
@@ -5014,7 +5049,7 @@ For more help on a command:
 
     mcp_serve_p = mcp_sub.add_parser(
         "serve",
-        help="Run Hermes as an MCP server (expose conversations to other agents)",
+        help="Run Mavis as an MCP server (expose conversations to other agents)",
     )
     mcp_serve_p.add_argument(
         "-v", "--verbose", action="store_true",
@@ -5281,14 +5316,14 @@ For more help on a command:
     claw_parser = subparsers.add_parser(
         "claw",
         help="OpenClaw migration tools",
-        description="Migrate settings, memories, skills, and API keys from OpenClaw to Hermes"
+        description="Migrate settings, memories, skills, and API keys from OpenClaw to Mavis"
     )
     claw_subparsers = claw_parser.add_subparsers(dest="claw_action")
 
     # claw migrate
     claw_migrate = claw_subparsers.add_parser(
         "migrate",
-        help="Migrate from OpenClaw to Hermes",
+        help="Migrate from OpenClaw to Mavis",
         description="Import settings, memories, skills, and API keys from an OpenClaw installation"
     )
     claw_migrate.add_argument(

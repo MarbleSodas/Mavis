@@ -1,7 +1,7 @@
-"""Hermes CLI skin/theme engine.
+"""Mavis CLI skin/theme engine.
 
 A data-driven skin system that lets users customize the CLI's visual appearance.
-Skins are defined as YAML files in ~/.hermes/skins/ or as built-in presets.
+Skins are defined as YAML files in ~/.mavis/skins/ or as built-in presets.
 No code changes are needed to add a new skin.
 
 SKIN YAML SCHEMA
@@ -50,10 +50,10 @@ All fields are optional. Missing values inherit from the ``default`` skin.
 
     # Branding: text strings used throughout the CLI
     branding:
-      agent_name: "Hermes Agent"          # Banner title, status display
+      agent_name: "Mavis"                 # Banner title, status display
       welcome: "Welcome message"          # Shown at CLI startup
-      goodbye: "Goodbye! ⚕"              # Shown on exit
-      response_label: " ⚕ Hermes "       # Response box header label
+      goodbye: "Goodbye."                 # Shown on exit
+      response_label: " Mavis "           # Response box header label
       prompt_symbol: "❯ "                # Input prompt symbol
       help_header: "(^_^)? Commands"      # /help header text
 
@@ -75,15 +75,15 @@ USAGE
 
     skin = get_active_skin()
     print(skin.colors["banner_title"])    # "#FFD700"
-    print(skin.get_branding("agent_name"))  # "Hermes Agent"
+    print(skin.get_branding("agent_name"))  # "Mavis"
 
     set_active_skin("ares")               # Switch to built-in ares skin
-    set_active_skin("mytheme")            # Switch to user skin from ~/.hermes/skins/
+    set_active_skin("mytheme")            # Switch to user skin from ~/.mavis/skins/
 
 BUILT-IN SKINS
 ==============
 
-- ``default`` — Classic Hermes gold/kawaii (the current look)
+- ``default`` — Classic Mavis gold/minimal
 - ``ares``    — Crimson/bronze war-god theme with custom spinner wings
 - ``mono``    — Clean grayscale monochrome
 - ``slate``   — Cool blue developer-focused theme
@@ -91,7 +91,7 @@ BUILT-IN SKINS
 USER SKINS
 ==========
 
-Drop a YAML file in ``~/.hermes/skins/<name>.yaml`` following the schema above.
+Drop a YAML file in ``~/.mavis/skins/<name>.yaml`` following the schema above.
 Activate with ``/skin <name>`` in the CLI or ``display.skin: <name>`` in config.yaml.
 """
 
@@ -151,7 +151,7 @@ class SkinConfig:
 _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
     "default": {
         "name": "default",
-        "description": "Classic Hermes — gold and kawaii",
+        "description": "Classic Mavis — gold and minimal",
         "colors": {
             "banner_border": "#CD7F32",
             "banner_title": "#FFD700",
@@ -173,10 +173,10 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
             # Empty = use hardcoded defaults in display.py
         },
         "branding": {
-            "agent_name": "Hermes Agent",
-            "welcome": "Welcome to Hermes Agent! Type your message or /help for commands.",
-            "goodbye": "Goodbye! ⚕",
-            "response_label": " ⚕ Hermes ",
+            "agent_name": "Mavis",
+            "welcome": "Welcome to Mavis! Type your message or /help for commands.",
+            "goodbye": "Goodbye.",
+            "response_label": " Mavis ",
             "prompt_symbol": "❯ ",
             "help_header": "(^_^)? Available Commands",
         },
@@ -268,10 +268,10 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
         },
         "spinner": {},
         "branding": {
-            "agent_name": "Hermes Agent",
-            "welcome": "Welcome to Hermes Agent! Type your message or /help for commands.",
-            "goodbye": "Goodbye! ⚕",
-            "response_label": " ⚕ Hermes ",
+            "agent_name": "Mavis",
+            "welcome": "Welcome to Mavis! Type your message or /help for commands.",
+            "goodbye": "Goodbye.",
+            "response_label": " Mavis ",
             "prompt_symbol": "❯ ",
             "help_header": "[?] Available Commands",
         },
@@ -299,10 +299,10 @@ _BUILTIN_SKINS: Dict[str, Dict[str, Any]] = {
         },
         "spinner": {},
         "branding": {
-            "agent_name": "Hermes Agent",
-            "welcome": "Welcome to Hermes Agent! Type your message or /help for commands.",
-            "goodbye": "Goodbye! ⚕",
-            "response_label": " ⚕ Hermes ",
+            "agent_name": "Mavis",
+            "welcome": "Welcome to Mavis! Type your message or /help for commands.",
+            "goodbye": "Goodbye.",
+            "response_label": " Mavis ",
             "prompt_symbol": "❯ ",
             "help_header": "(^_^)? Available Commands",
         },
@@ -661,7 +661,7 @@ def get_active_help_header(fallback: str = "(^_^)? Available Commands") -> str:
 
 
 
-def get_active_goodbye(fallback: str = "Goodbye! ⚕") -> str:
+def get_active_goodbye(fallback: str = "Goodbye.") -> str:
     """Get the goodbye line from the active skin."""
     try:
         return get_active_skin().get_branding("goodbye", fallback)
