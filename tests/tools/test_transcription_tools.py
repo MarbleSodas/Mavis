@@ -48,8 +48,8 @@ def clean_env(monkeypatch):
     monkeypatch.delenv("VOICE_TOOLS_OPENAI_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
-    monkeypatch.delenv("HERMES_LOCAL_STT_COMMAND", raising=False)
-    monkeypatch.delenv("HERMES_LOCAL_STT_LANGUAGE", raising=False)
+    monkeypatch.delenv("MAVIS_LOCAL_STT_COMMAND", raising=False)
+    monkeypatch.delenv("MAVIS_LOCAL_STT_LANGUAGE", raising=False)
 
 
 # ============================================================================
@@ -91,15 +91,15 @@ class TestGetProviderFallbackPriority:
             from tools.transcription_tools import _get_provider
             assert _get_provider({}) == "local"
 
-    def test_auto_detect_prefers_groq_over_openai(self, monkeypatch):
-        """Auto-detect: groq (free) is preferred over openai (paid)."""
+    def test_auto_detect_stays_local_only_when_local_is_unavailable(self, monkeypatch):
+        """Auto-detect does not silently fall back to cloud providers."""
         monkeypatch.setenv("GROQ_API_KEY", "gsk-test")
         monkeypatch.setenv("VOICE_TOOLS_OPENAI_KEY", "sk-test")
         with patch("tools.transcription_tools._HAS_FASTER_WHISPER", False), \
              patch("tools.transcription_tools._has_local_command", return_value=False), \
              patch("tools.transcription_tools._HAS_OPENAI", True):
             from tools.transcription_tools import _get_provider
-            assert _get_provider({}) == "groq"
+            assert _get_provider({}) == "none"
 
     def test_explicit_openai_no_key_returns_none(self, monkeypatch):
         """Explicit openai with no key returns none — no cross-provider fallback."""
@@ -152,7 +152,7 @@ class TestExplicitProviderRespected:
     def test_explicit_local_uses_local_command_fallback(self, monkeypatch):
         """Local-to-local_command fallback is fine — both are local."""
         monkeypatch.setenv(
-            "HERMES_LOCAL_STT_COMMAND",
+            "MAVIS_LOCAL_STT_COMMAND",
             "whisper {input_path} --output_dir {output_dir} --language {language}",
         )
         with patch("tools.transcription_tools._HAS_FASTER_WHISPER", False):
@@ -179,19 +179,18 @@ class TestExplicitProviderRespected:
             result = _get_provider({"provider": "openai"})
             assert result == "none"
 
-    def test_auto_detect_still_falls_back_to_cloud(self, monkeypatch):
-        """When no provider is explicitly set, auto-detect cloud fallback works."""
+    def test_auto_detect_stays_local_only_without_local_backend(self, monkeypatch):
+        """When no provider is set, auto-detect only considers local backends."""
         monkeypatch.setenv("OPENAI_API_KEY", "sk-real-key")
         monkeypatch.delenv("GROQ_API_KEY", raising=False)
         with patch("tools.transcription_tools._HAS_FASTER_WHISPER", False), \
              patch("tools.transcription_tools._has_local_command", return_value=False), \
              patch("tools.transcription_tools._HAS_OPENAI", True):
             from tools.transcription_tools import _get_provider
-            # Empty dict = no explicit provider, uses DEFAULT_PROVIDER auto-detect
             result = _get_provider({})
-            assert result == "openai"
+            assert result == "none"
 
-    def test_auto_detect_prefers_groq_over_openai(self, monkeypatch):
+    def test_auto_detect_ignores_cloud_priority_when_local_is_unavailable(self, monkeypatch):
         monkeypatch.setenv("GROQ_API_KEY", "gsk-test")
         monkeypatch.setenv("OPENAI_API_KEY", "sk-real-key")
         with patch("tools.transcription_tools._HAS_FASTER_WHISPER", False), \
@@ -199,7 +198,7 @@ class TestExplicitProviderRespected:
              patch("tools.transcription_tools._HAS_OPENAI", True):
             from tools.transcription_tools import _get_provider
             result = _get_provider({})
-            assert result == "groq"
+            assert result == "none"
 
 
 # ============================================================================
@@ -354,7 +353,7 @@ class TestTranscribeOpenAIExtended:
 
 class TestTranscribeLocalCommand:
     def test_auto_detects_local_whisper_binary(self, monkeypatch):
-        monkeypatch.delenv("HERMES_LOCAL_STT_COMMAND", raising=False)
+        monkeypatch.delenv("MAVIS_LOCAL_STT_COMMAND", raising=False)
         monkeypatch.setattr("tools.transcription_tools._find_whisper_binary", lambda: "/opt/homebrew/bin/whisper")
 
         from tools.transcription_tools import _get_local_command_template
@@ -371,10 +370,10 @@ class TestTranscribeLocalCommand:
         out_dir.mkdir()
 
         monkeypatch.setenv(
-            "HERMES_LOCAL_STT_COMMAND",
+            "MAVIS_LOCAL_STT_COMMAND",
             "whisper {input_path} --model {model} --output_dir {output_dir} --language {language}",
         )
-        monkeypatch.setenv("HERMES_LOCAL_STT_LANGUAGE", "en")
+        monkeypatch.setenv("MAVIS_LOCAL_STT_LANGUAGE", "en")
 
         def fake_tempdir(prefix=None):
             class _TempDir:
@@ -738,9 +737,9 @@ class TestTranscribeAudioDispatch:
             result = transcribe_audio(sample_ogg)
 
         assert result["success"] is False
-        assert "No STT provider" in result["error"]
+        assert "No local STT provider available" in result["error"]
         assert "faster-whisper" in result["error"]
-        assert "GROQ_API_KEY" in result["error"]
+        assert "MAVIS_LOCAL_STT_COMMAND" in result["error"]
 
     def test_explicit_openai_no_key_returns_error(self, monkeypatch, sample_ogg):
         """Explicit provider=openai with no key returns an error, not a fallback."""
@@ -754,7 +753,7 @@ class TestTranscribeAudioDispatch:
             result = transcribe_audio(sample_ogg)
 
         assert result["success"] is False
-        assert "No STT provider" in result["error"]
+        assert "No local STT provider available" in result["error"]
 
     def test_invalid_file_short_circuits(self):
         from tools.transcription_tools import transcribe_audio
@@ -824,7 +823,7 @@ class TestGetSttModelFromConfig:
     def test_returns_model_from_config(self, tmp_path, monkeypatch):
         cfg = tmp_path / "config.yaml"
         cfg.write_text("stt:\n  model: whisper-large-v3\n")
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("MAVIS_HOME", str(tmp_path))
 
         from tools.transcription_tools import get_stt_model_from_config
         assert get_stt_model_from_config() == "whisper-large-v3"
@@ -832,13 +831,13 @@ class TestGetSttModelFromConfig:
     def test_returns_none_when_no_stt_section(self, tmp_path, monkeypatch):
         cfg = tmp_path / "config.yaml"
         cfg.write_text("tts:\n  provider: edge\n")
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("MAVIS_HOME", str(tmp_path))
 
         from tools.transcription_tools import get_stt_model_from_config
         assert get_stt_model_from_config() is None
 
     def test_returns_none_when_no_config_file(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("MAVIS_HOME", str(tmp_path))
 
         from tools.transcription_tools import get_stt_model_from_config
         assert get_stt_model_from_config() is None
@@ -846,7 +845,7 @@ class TestGetSttModelFromConfig:
     def test_returns_none_on_invalid_yaml(self, tmp_path, monkeypatch):
         cfg = tmp_path / "config.yaml"
         cfg.write_text(": : :\n  bad yaml [[[")
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("MAVIS_HOME", str(tmp_path))
 
         from tools.transcription_tools import get_stt_model_from_config
         assert get_stt_model_from_config() is None
@@ -854,7 +853,7 @@ class TestGetSttModelFromConfig:
     def test_returns_none_when_model_key_missing(self, tmp_path, monkeypatch):
         cfg = tmp_path / "config.yaml"
         cfg.write_text("stt:\n  enabled: true\n")
-        monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+        monkeypatch.setenv("MAVIS_HOME", str(tmp_path))
 
         from tools.transcription_tools import get_stt_model_from_config
         assert get_stt_model_from_config() is None
