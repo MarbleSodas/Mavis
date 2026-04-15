@@ -3,6 +3,7 @@
 AI-native cross-session user modeling with dialectic Q&A, semantic search, peer cards, and persistent conclusions.
 
 > **Honcho docs:** <https://docs.honcho.dev/v3/guides/integrations/hermes>
+> The upstream guide still uses the historical Hermes integration name; the Mavis commands below reflect this repo's rebrand.
 
 ## Requirements
 
@@ -12,14 +13,14 @@ AI-native cross-session user modeling with dialectic Q&A, semantic search, peer 
 ## Setup
 
 ```bash
-hermes honcho setup    # full interactive wizard (cloud or local)
-hermes memory setup    # generic picker, also works
+mavis honcho setup    # full interactive wizard (cloud or local)
+mavis memory setup    # generic picker, also works
 ```
 
 Or manually:
 ```bash
-hermes config set memory.provider honcho
-echo "HONCHO_API_KEY=your-key" >> ~/.hermes/.env
+mavis config set memory.provider honcho
+echo "HONCHO_API_KEY=your-key" >> ~/.mavis/.env
 ```
 
 ## Config Resolution
@@ -28,11 +29,11 @@ Config is read from the first file that exists:
 
 | Priority | Path | Scope |
 |----------|------|-------|
-| 1 | `$HERMES_HOME/honcho.json` | Profile-local (isolated Hermes instances) |
-| 2 | `~/.hermes/honcho.json` | Default profile (shared host blocks) |
+| 1 | `$MAVIS_HOME/honcho.json` | Profile-local (isolated Mavis instances) |
+| 2 | `~/.mavis/honcho.json` | Default profile (shared host blocks) |
 | 3 | `~/.honcho/config.json` | Global (cross-app interop) |
 
-Host key is derived from the active Hermes profile: `hermes` (default) or `hermes.<profile>`.
+Host key is derived from the active Mavis profile: `mavis` (default) or `mavis.<profile>`.
 
 ## Tools
 
@@ -93,7 +94,7 @@ Per-profile example -- coder profile observes the user but user doesn't observe 
 
 ```json
 "hosts": {
-  "hermes.coder": {
+  "mavis.coder": {
     "observation": {
       "user": { "observeMe": true, "observeOthers": false },
       "ai":   { "observeMe": true, "observeOthers": true }
@@ -152,7 +153,7 @@ These are read from the root config object, not the host block. Must be set manu
 
 For every key, resolution order is: **host block > root > env var > default**.
 
-Host key derivation: `HERMES_HONCHO_HOST` env > active profile (`hermes.<profile>`) > `"hermes"`.
+Host key derivation: `MAVIS_HONCHO_HOST` env > active profile (`mavis.<profile>`) > `"mavis"`.
 
 ## Environment Variables
 
@@ -161,35 +162,35 @@ Host key derivation: `HERMES_HONCHO_HOST` env > active profile (`hermes.<profile
 | `HONCHO_API_KEY` | `apiKey` |
 | `HONCHO_BASE_URL` | `baseUrl` |
 | `HONCHO_ENVIRONMENT` | `environment` |
-| `HERMES_HONCHO_HOST` | Host key override |
+| `MAVIS_HONCHO_HOST` | Host key override |
 
 ## CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `hermes honcho setup` | Full interactive setup wizard |
-| `hermes honcho status` | Show resolved config for active profile |
-| `hermes honcho enable` / `disable` | Toggle Honcho for active profile |
-| `hermes honcho mode <mode>` | Change recall or observation mode |
-| `hermes honcho peer --user <name>` | Update user peer name |
-| `hermes honcho peer --ai <name>` | Update AI peer name |
-| `hermes honcho tokens --context <N>` | Set context token budget |
-| `hermes honcho tokens --dialectic <N>` | Set dialectic max chars |
-| `hermes honcho map <name>` | Map current directory to a session name |
-| `hermes honcho sync` | Create host blocks for all Hermes profiles |
+| `mavis honcho setup` | Full interactive setup wizard |
+| `mavis honcho status` | Show resolved config for active profile |
+| `mavis honcho enable` / `disable` | Toggle Honcho for active profile |
+| `mavis honcho mode <mode>` | Change recall or observation mode |
+| `mavis honcho peer --user <name>` | Update user peer name |
+| `mavis honcho peer --ai <name>` | Update AI peer name |
+| `mavis honcho tokens --context <N>` | Set context token budget |
+| `mavis honcho tokens --dialectic <N>` | Set dialectic max chars |
+| `mavis honcho map <name>` | Map current directory to a session name |
+| `mavis honcho sync` | Create host blocks for all Mavis profiles |
 
 ## Example Config
 
 ```json
 {
   "apiKey": "your-key",
-  "workspace": "hermes",
+  "workspace": "mavis",
   "peerName": "eri",
   "hosts": {
-    "hermes": {
+    "mavis": {
       "enabled": true,
-      "aiPeer": "hermes",
-      "workspace": "hermes",
+      "aiPeer": "mavis",
+      "workspace": "mavis",
       "peerName": "eri",
       "recallMode": "hybrid",
       "observation": {
@@ -202,10 +203,10 @@ Host key derivation: `HERMES_HONCHO_HOST` env > active profile (`hermes.<profile
       "dialecticMaxChars": 600,
       "saveMessages": true
     },
-    "hermes.coder": {
+    "mavis.coder": {
       "enabled": true,
       "aiPeer": "coder",
-      "workspace": "hermes",
+      "workspace": "mavis",
       "peerName": "eri",
       "observation": {
         "user": { "observeMe": true, "observeOthers": false },
