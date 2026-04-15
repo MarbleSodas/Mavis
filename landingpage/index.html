@@ -3,23 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hermes Agent — An Agent That Grows With You</title>
+    <title>Mavis — An Agent That Grows With You</title>
     <meta
       name="description"
-      content="An open-source agent that grows with you — learns your projects, builds its own skills, and reaches you wherever you are. By Nous Research."
+      content="An open-source agent that grows with you — learns your projects, builds its own skills, and reaches you wherever you are."
     />
     <meta name="theme-color" content="#0A0E1A" />
 
-    <meta property="og:title" content="Hermes Agent — AI Agent Framework" />
+    <meta property="og:title" content="Mavis — AI Agent Framework" />
     <meta
       property="og:description"
       content="An open-source agent that grows with you. Install it, give it your messaging accounts, and it becomes a persistent personal agent — learning your projects, building its own skills, and reaching you wherever you are."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://hermes-agent.nousresearch.com" />
+    <meta property="og:url" content="https://marblesodas.github.io/Mavis/" />
     <meta
       property="og:image"
-      content="https://hermes-agent.nousresearch.com/hermes-agent-banner.png"
+      content="https://marblesodas.github.io/Mavis/mavis-banner.png"
     />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -50,15 +50,15 @@
         <a href="#" class="nav-logo">
           <img src="nous-logo.png" alt="Nous Research" class="nav-nous-logo" />
           <span class="nav-brand"
-            >Hermes Agent <span class="nav-by">by Nous Research</span></span
+            >Mavis <span class="nav-by">community edition</span></span
           >
         </a>
         <div class="nav-links">
           <a href="#install">Install</a>
           <a href="#features">Features</a>
-          <a href="/docs/">Docs</a>
+          <a href="docs/">Docs</a>
           <a
-            href="https://github.com/NousResearch/hermes-agent"
+            href="https://github.com/MarbleSodas/Mavis"
             target="_blank"
             rel="noopener"
             >GitHub</a
@@ -83,9 +83,9 @@
         <div class="nav-mobile" id="nav-mobile">
           <a href="#install" onclick="toggleMobileNav()">Install</a>
           <a href="#features" onclick="toggleMobileNav()">Features</a>
-          <a href="/docs/">Docs</a>
+          <a href="docs/">Docs</a>
           <a
-            href="https://github.com/NousResearch/hermes-agent"
+            href="https://github.com/MarbleSodas/Mavis"
             target="_blank"
             rel="noopener"
             >GitHub</a
@@ -151,7 +151,7 @@
               <span class="install-prompt" id="install-prompt">$</span>
               <code id="install-command"
                 >curl -fsSL
-                https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh
+                https://raw.githubusercontent.com/MarbleSodas/Mavis/main/scripts/install.sh
                 | bash</code
               >
               <button
@@ -237,12 +237,12 @@
                     class="copy-btn"
                     id="step1-copy"
                     onclick="copyText(this)"
-                    data-text="curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash"
+                    data-text="curl -fsSL https://raw.githubusercontent.com/MarbleSodas/Mavis/main/scripts/install.sh | bash"
                   >
                     Copy
                   </button>
                 </div>
-                <pre><code id="step1-command">curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash</code></pre>
+                <pre><code id="step1-command">curl -fsSL https://raw.githubusercontent.com/MarbleSodas/Mavis/main/scripts/install.sh | bash</code></pre>
               </div>
               <p class="step-note" id="step1-note">
                 Installs uv, Python 3.11, clones the repo, sets up everything.
@@ -261,16 +261,16 @@
                   <button
                     class="copy-btn"
                     onclick="copyText(this)"
-                    data-text="hermes setup"
+                    data-text="mavis setup"
                   >
                     Copy
                   </button>
                 </div>
                 <pre><code><span class="code-comment"># Interactive setup wizard</span>
-hermes setup
+mavis setup
 
 <span class="code-comment"># Or choose your model</span>
-hermes model</code></pre>
+mavis model</code></pre>
               </div>
               <p class="step-note">
                 Connect to Nous Portal (OAuth), OpenRouter (API key), or your
@@ -289,12 +289,12 @@ hermes model</code></pre>
                   <button
                     class="copy-btn"
                     onclick="copyText(this)"
-                    data-text="hermes"
+                    data-text="mavis"
                   >
                     Copy
                   </button>
                 </div>
-                <pre><code>hermes</code></pre>
+                <pre><code>mavis</code></pre>
               </div>
               <p class="step-note">
                 That's it. Full interactive CLI with tools, memory, and skills.
@@ -314,19 +314,19 @@ hermes model</code></pre>
                   <button
                     class="copy-btn"
                     onclick="copyText(this)"
-                    data-text="hermes gateway setup"
+                    data-text="mavis gateway setup"
                   >
                     Copy
                   </button>
                 </div>
                 <pre><code><span class="code-comment"># Interactive gateway setup wizard</span>
-hermes gateway setup
+mavis gateway setup
 
 <span class="code-comment"># Start the messaging gateway</span>
-hermes gateway
+mavis gateway
 
 <span class="code-comment"># Install as a system service</span>
-hermes gateway install</code></pre>
+mavis gateway install</code></pre>
               </div>
               <p class="step-note">
                 Walk through connecting Telegram, Discord, Slack, or WhatsApp.
@@ -345,12 +345,12 @@ hermes gateway install</code></pre>
                   <button
                     class="copy-btn"
                     onclick="copyText(this)"
-                    data-text="hermes update"
+                    data-text="mavis update"
                   >
                     Copy
                   </button>
                 </div>
-                <pre><code>hermes update</code></pre>
+                <pre><code>mavis update</code></pre>
               </div>
               <p class="step-note">
                 Pulls the latest changes and reinstalls dependencies. Run
@@ -370,7 +370,7 @@ hermes gateway install</code></pre>
               rel="noopener"
               >WSL2</a
             >
-            and run Hermes Agent from there.
+            and run Mavis from there.
           </p>
         </div>
       </div>
@@ -390,7 +390,7 @@ hermes gateway install</code></pre>
               <span class="dot dot-yellow"></span>
               <span class="dot dot-green"></span>
             </div>
-            <span class="terminal-title">hermes</span>
+            <span class="terminal-title">mavis</span>
           </div>
           <div class="terminal-body" id="terminal-demo"></div>
         </div>
@@ -651,9 +651,9 @@ hermes gateway install</code></pre>
     <footer class="footer">
       <div class="container">
         <p class="footer-copy">
-          Built by
-          <a href="https://nousresearch.com" target="_blank" rel="noopener"
-            >Nous Research</a
+          Community-maintained by
+          <a href="https://github.com/MarbleSodas" target="_blank" rel="noopener"
+            >MarbleSodas</a
           >
           &middot; MIT License &middot; 2026
         </p>
