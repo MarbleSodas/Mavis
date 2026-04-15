@@ -4,11 +4,11 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Mavis',
-  tagline: 'Voice-first agent harness built on Hermes Agent',
+  tagline: 'Voice-first agent harness for personal automation and long-running workflows',
   favicon: 'img/favicon.ico',
 
-  url: 'https://github.com/MarbleSodas/Mavis',
-  baseUrl: '/docs/',
+  url: 'https://marblesodas.github.io',
+  baseUrl: '/Mavis/docs/',
 
   organizationName: 'MarbleSodas',
   projectName: 'Mavis',
@@ -60,7 +60,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    image: 'img/hermes-agent-banner.png',
+    image: 'img/mavis-banner.png',
     colorMode: {
       defaultMode: 'dark',
       respectPrefersColorScheme: true,
@@ -130,11 +130,11 @@ const config: Config = {
           title: 'More',
           items: [
             { label: 'GitHub', href: 'https://github.com/MarbleSodas/Mavis' },
-            { label: 'Nous Research', href: 'https://nousresearch.com' },
+            { label: 'MarbleSodas', href: 'https://github.com/MarbleSodas' },
           ],
         },
       ],
-      copyright: `Built by <a href="https://nousresearch.com">Nous Research</a> · MIT License · ${new Date().getFullYear()}`,
+      copyright: `Community-maintained by <a href="https://github.com/MarbleSodas">MarbleSodas</a> · MIT License · ${new Date().getFullYear()}`,
     },
     prism: {
       theme: prismThemes.github,
